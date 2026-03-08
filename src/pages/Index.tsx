@@ -1,94 +1,155 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Upload, Eye, TreePine, FileText, Presentation } from 'lucide-react';
+import { Upload, Eye, FileText, Clock, ChevronRight, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
-const features = [
-  {
-    icon: TreePine,
-    title: '树状导读大纲',
-    desc: '自动解析论文结构，生成可编辑的层级大纲',
-  },
-  {
-    icon: FileText,
-    title: '导读文章与演讲注释',
-    desc: '为每页生成讲解稿和过渡句，助你从容汇报',
-  },
-  {
-    icon: Presentation,
-    title: '可编辑 PPT 工作台',
-    desc: '直接编辑内容与排版，一站式完成汇报准备',
-  },
-];
+interface ProjectRecord {
+  id: string;
+  title: string;
+  template: string;
+  slideCount: number;
+  updatedAt: string;
+}
+
+const STORAGE_KEY = 'paper-guide-projects';
+
+const getProjects = (): ProjectRecord[] => {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    return JSON.parse(raw);
+  } catch { return []; }
+};
+
+const saveProjects = (projects: ProjectRecord[]) => {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
+};
+
+// Seed a demo project if none exist
+const ensureDemoProject = () => {
+  const projects = getProjects();
+  if (projects.length === 0) {
+    const demo: ProjectRecord = {
+      id: 'demo-project',
+      title: 'Attention Is All You Need',
+      template: '组会汇报版',
+      slideCount: 9,
+      updatedAt: new Date().toISOString(),
+    };
+    saveProjects([demo]);
+    return [demo];
+  }
+  return projects;
+};
 
 const Index = () => {
   const navigate = useNavigate();
+  const [projects, setProjects] = useState<ProjectRecord[]>(ensureDemoProject);
+
+  const deleteProject = (id: string) => {
+    const updated = projects.filter(p => p.id !== id);
+    saveProjects(updated);
+    setProjects(updated);
+  };
+
+  const formatDate = (iso: string) => {
+    const d = new Date(iso);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
       <header className="border-b border-border px-6 py-4">
-        <div className="max-w-5xl mx-auto flex items-center justify-between">
+        <div className="max-w-4xl mx-auto flex items-center justify-between">
           <h1 className="text-xl font-display font-semibold text-foreground">📄 论文导读助手</h1>
-          <Button variant="ghost" size="sm" onClick={() => navigate('/workspace')}>
-            <Eye className="w-4 h-4 mr-1.5" />
-            查看示例
-          </Button>
         </div>
       </header>
 
-      {/* Hero */}
-      <main className="flex-1 flex flex-col items-center justify-center px-6">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className="max-w-2xl text-center"
-        >
-          <h2 className="text-4xl md:text-5xl font-display font-bold text-foreground leading-tight mb-4">
-            上传论文，快速生成
-            <br />
-            <span className="text-primary">可讲的导读内容</span>
-          </h2>
-          <p className="text-lg text-muted-foreground mb-10 max-w-lg mx-auto">
-            从论文到组会汇报，只需几分钟。自动生成大纲、导读文章、PPT 页面和演讲注释。
-          </p>
-
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-            <Button size="lg" className="px-8 text-base" onClick={() => navigate('/upload')}>
-              <Upload className="w-5 h-5 mr-2" />
-              上传论文
-            </Button>
-            <Button size="lg" variant="outline" className="px-8 text-base" onClick={() => navigate('/workspace')}>
-              <Eye className="w-5 h-5 mr-2" />
-              查看示例
-            </Button>
-          </div>
-        </motion.div>
-
-        {/* Features */}
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.2 }}
-          className="mt-20 max-w-4xl w-full grid grid-cols-1 md:grid-cols-3 gap-6"
-        >
-          {features.map((f, i) => (
-            <div
-              key={i}
-              className="bg-card border border-border rounded-lg p-6 text-center hover:border-primary/30 transition-colors"
-            >
-              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center mx-auto mb-4">
-                <f.icon className="w-5 h-5 text-primary" />
-              </div>
-              <h3 className="font-display font-semibold text-foreground mb-2">{f.title}</h3>
-              <p className="text-sm text-muted-foreground">{f.desc}</p>
+      {/* Main */}
+      <main className="flex-1 px-6 py-8">
+        <div className="max-w-4xl mx-auto">
+          {/* Hero */}
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-center mb-12"
+          >
+            <h2 className="text-3xl md:text-4xl font-display font-bold text-foreground leading-tight mb-3">
+              上传论文，快速生成
+              <span className="text-primary"> 可讲的导读内容</span>
+            </h2>
+            <p className="text-muted-foreground mb-8 max-w-md mx-auto">
+              从论文到组会汇报，只需几分钟。
+            </p>
+            <div className="flex items-center justify-center gap-3">
+              <Button size="lg" className="px-8" onClick={() => navigate('/upload')}>
+                <Upload className="w-5 h-5 mr-2" />
+                上传论文
+              </Button>
+              <Button size="lg" variant="outline" className="px-8" onClick={() => navigate('/workspace')}>
+                <Eye className="w-5 h-5 mr-2" />
+                查看示例
+              </Button>
             </div>
-          ))}
-        </motion.div>
+          </motion.div>
+
+          {/* Project History */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15 }}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                <Clock className="w-3.5 h-3.5" />
+                历史项目
+              </h3>
+            </div>
+
+            {projects.length === 0 ? (
+              <div className="border border-dashed border-border rounded-xl p-12 text-center">
+                <FileText className="w-8 h-8 text-muted-foreground/40 mx-auto mb-3" />
+                <p className="text-sm text-muted-foreground">还没有历史项目</p>
+                <p className="text-xs text-muted-foreground/60 mt-1">上传一篇论文开始使用吧</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {projects.map((project) => (
+                  <div
+                    key={project.id}
+                    onClick={() => navigate('/workspace')}
+                    className="group bg-card border border-border rounded-lg px-5 py-4 flex items-center justify-between cursor-pointer hover:border-primary/30 transition-colors"
+                  >
+                    <div className="flex items-center gap-4 min-w-0">
+                      <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                        <FileText className="w-4.5 h-4.5 text-primary" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-foreground truncate">{project.title}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {project.template} · {project.slideCount} 页 · {formatDate(project.updatedAt)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); deleteProject(project.id); }}
+                        className="p-1.5 rounded-md opacity-0 group-hover:opacity-100 hover:bg-destructive/10 transition-all"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                      </button>
+                      <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </motion.div>
+        </div>
       </main>
 
-      {/* Footer */}
       <footer className="border-t border-border px-6 py-4 text-center text-sm text-muted-foreground">
         论文导读助手 — 让每一次文献汇报都从容不迫
       </footer>
