@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, ChevronUp, ChevronDown, Plus, MoreHorizontal, Copy, RefreshCw,
-  PanelLeftClose, PanelLeftOpen, GripVertical, Send, Sparkles, Loader2
+  PanelLeftClose, PanelLeftOpen, GripVertical, Send, Sparkles, Loader2,
+  FileText as FileTextIcon
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -14,6 +15,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { getCurrentPdfUrl } from '@/lib/pdfStorage';
 
 const TONE_OPTIONS: { value: SlideNotes['tone']; label: string }[] = [
   { value: 'concise', label: '简洁' },
@@ -22,6 +24,8 @@ const TONE_OPTIONS: { value: SlideNotes['tone']; label: string }[] = [
   { value: 'classroom', label: '课堂汇报风' },
 ];
 
+const STORAGE_KEY = 'paper-guide-projects';
+
 const WorkspacePage = () => {
   const navigate = useNavigate();
   const [slides, setSlides] = useState<Slide[]>(MOCK_PROJECT.slides);
@@ -29,6 +33,8 @@ const WorkspacePage = () => {
   const [paperTitle, setPaperTitle] = useState(MOCK_PROJECT.paper.title);
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
   const [articleOpen, setArticleOpen] = useState(true);
+  const [pdfOpen, setPdfOpen] = useState(true);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [notesOpen, setNotesOpen] = useState(true);
   const [promptText, setPromptText] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
@@ -36,24 +42,30 @@ const WorkspacePage = () => {
   const hasGenerated = useRef(false);
   const currentSlide = slides[currentSlideIndex];
 
+  // Load PDF
+  useEffect(() => {
+    getCurrentPdfUrl().then(url => {
+      if (url) setPdfUrl(url);
+    }).catch(() => {});
+    return () => {
+      if (pdfUrl) URL.revokeObjectURL(pdfUrl);
+    };
+  }, []);
+
   // On mount, check if we need to generate workspace from AI
   useEffect(() => {
     if (hasGenerated.current) return;
     hasGenerated.current = true;
 
     const saved = localStorage.getItem('current_project');
-    if (!saved) return; // Use mock data
+    if (!saved) return;
 
     try {
       const data = JSON.parse(saved);
-      
-      // If workspace already generated, load it
       if (data.slides && data.article) {
         loadWorkspaceData(data);
         return;
       }
-
-      // If we have outline + template, generate workspace
       if (data.outline && data.paper) {
         generateWorkspace(data);
       }
@@ -62,8 +74,6 @@ const WorkspacePage = () => {
 
   const loadWorkspaceData = (data: any) => {
     setPaperTitle(data.paper?.title || MOCK_PROJECT.paper.title);
-    
-    // Normalize slides
     const normalizedSlides: Slide[] = (data.slides || []).map((s: any, i: number) => ({
       id: s.id || `s-${i}`,
       order: i,
@@ -82,12 +92,8 @@ const WorkspacePage = () => {
         tone: s.notes?.tone || 'natural',
       },
     }));
-
     if (normalizedSlides.length > 0) setSlides(normalizedSlides);
-    
-    if (data.article?.sections) {
-      setArticle(data.article);
-    }
+    if (data.article?.sections) setArticle(data.article);
   };
 
   const generateWorkspace = async (data: any) => {
@@ -101,14 +107,27 @@ const WorkspacePage = () => {
           density: data.density || 'standard',
         },
       });
-
       if (error) throw error;
       if (result?.error) throw new Error(result.error);
 
-      // Save generated data
-      const updated = { ...data, slides: result.slides, article: result.article };
+      const updated = { ...data, slides: result.slides, article: result.article, step: 'done' };
       localStorage.setItem('current_project', JSON.stringify(updated));
-      
+
+      // Update project history
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const projects = JSON.parse(raw);
+          const idx = projects.findIndex((p: any) => p.id === data.id);
+          if (idx >= 0) {
+            projects[idx].slideCount = result.slides?.length || 0;
+            projects[idx].step = 'done';
+            projects[idx].updatedAt = new Date().toISOString();
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
+          }
+        }
+      } catch {}
+
       loadWorkspaceData(updated);
       toast.success('导读工作台已生成');
     } catch (e: any) {
@@ -135,10 +154,7 @@ const WorkspacePage = () => {
         },
       });
       if (error) throw error;
-      if (data?.error) {
-        toast.error(data.error);
-        return;
-      }
+      if (data?.error) { toast.error(data.error); return; }
       const updated = slides.map((s, i) => {
         if (i !== currentSlideIndex) return s;
         return {
@@ -149,8 +165,6 @@ const WorkspacePage = () => {
         };
       });
       setSlides(updated);
-      
-      // Save back to localStorage
       try {
         const saved = localStorage.getItem('current_project');
         if (saved) {
@@ -159,7 +173,6 @@ const WorkspacePage = () => {
           localStorage.setItem('current_project', JSON.stringify(proj));
         }
       } catch {}
-      
       toast.success('AI 已更新页面内容');
     } catch (e: any) {
       console.error('AI error:', e);
@@ -190,7 +203,6 @@ const WorkspacePage = () => {
 
   return (
     <div className="h-screen bg-background flex flex-col overflow-hidden">
-      {/* Header */}
       <header className="border-b border-border px-4 py-2.5 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="icon" onClick={() => navigate('/')}>
@@ -199,26 +211,61 @@ const WorkspacePage = () => {
           <h1 className="text-base font-display font-semibold text-foreground">{paperTitle}</h1>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={() => setPdfOpen(!pdfOpen)}>
+            <FileTextIcon className="w-4 h-4" />
+            <span className="ml-1 text-xs">原文</span>
+          </Button>
           <Button variant="ghost" size="sm" onClick={() => setArticleOpen(!articleOpen)}>
             {articleOpen ? <PanelLeftClose className="w-4 h-4" /> : <PanelLeftOpen className="w-4 h-4" />}
+            <span className="ml-1 text-xs">导读</span>
           </Button>
           <Button variant="outline" size="sm" onClick={() => navigate('/export')}>导出</Button>
         </div>
       </header>
 
-      {/* Main content */}
       <div className="flex-1 flex overflow-hidden">
+        {/* Far left - PDF viewer */}
+        <AnimatePresence initial={false}>
+          {pdfOpen && (
+            <motion.aside
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 360, opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="border-r border-border overflow-hidden flex-shrink-0"
+            >
+              <div className="w-[360px] h-full flex flex-col">
+                <div className="px-3 py-2 border-b border-border flex items-center gap-2">
+                  <FileTextIcon className="w-3.5 h-3.5 text-muted-foreground" />
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">论文原文</span>
+                </div>
+                <div className="flex-1 overflow-hidden">
+                  {pdfUrl ? (
+                    <object data={pdfUrl} type="application/pdf" className="w-full h-full">
+                      <iframe src={pdfUrl} className="w-full h-full border-0" title="论文 PDF" />
+                    </object>
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
+                      <p>未找到 PDF 文件</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </motion.aside>
+          )}
+        </AnimatePresence>
+
         {/* Left - Article */}
         <AnimatePresence initial={false}>
           {articleOpen && (
             <motion.aside
               initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 340, opacity: 1 }}
+              animate={{ width: 300, opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
               transition={{ duration: 0.2 }}
               className="border-r border-border overflow-hidden flex-shrink-0"
             >
-              <div className="w-[340px] h-full overflow-y-auto p-4">
+              <div className="w-[300px] h-full overflow-y-auto p-4">
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-4">导读文章</p>
                 {article.sections.map((section) => {
                   const isLinked = currentSlide?.linkedArticleSection === section.id;
@@ -266,39 +313,24 @@ const WorkspacePage = () => {
         <main className="flex-1 flex flex-col overflow-hidden">
           <div className="flex-1 flex flex-col items-center justify-center p-6 overflow-hidden">
             {currentSlide && (
-              <motion.div
-                key={currentSlide.id}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="w-full max-w-3xl"
-              >
+              <motion.div key={currentSlide.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full max-w-3xl">
                 <SlideEditor slide={currentSlide} onAiAction={callSlideAI} aiLoading={aiLoading} />
               </motion.div>
             )}
 
-            {/* Prompt input */}
             <div className="w-full max-w-3xl mt-4">
               <div className="flex items-start gap-2 bg-card border border-border rounded-lg p-2">
                 <Sparkles className="w-4 h-4 text-primary mt-2 ml-1 flex-shrink-0" />
                 <Textarea
                   value={promptText}
                   onChange={(e) => setPromptText(e.target.value)}
-                  placeholder={`对第 ${currentSlideIndex + 1} 页提出修改意见，例如："精简要点" "增加对比数据" "改为分栏布局"…`}
+                  placeholder={`对第 ${currentSlideIndex + 1} 页提出修改意见…`}
                   className="min-h-[36px] max-h-[80px] text-sm border-0 shadow-none resize-none focus-visible:ring-0 p-1"
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      handlePromptSubmit();
-                    }
+                    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handlePromptSubmit(); }
                   }}
                 />
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="flex-shrink-0 mt-0.5"
-                  onClick={handlePromptSubmit}
-                  disabled={!promptText.trim() || aiLoading}
-                >
+                <Button size="icon" variant="ghost" className="flex-shrink-0 mt-0.5" onClick={handlePromptSubmit} disabled={!promptText.trim() || aiLoading}>
                   {aiLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                 </Button>
               </div>
@@ -308,10 +340,7 @@ const WorkspacePage = () => {
           {/* Bottom - Notes drawer */}
           <div className="border-t border-border flex-shrink-0">
             <div className="flex items-center justify-between px-4 py-2">
-              <button
-                onClick={() => setNotesOpen(!notesOpen)}
-                className="flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-              >
+              <button onClick={() => setNotesOpen(!notesOpen)} className="flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
                 <span>演讲注释</span>
                 {notesOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
               </button>
@@ -321,9 +350,7 @@ const WorkspacePage = () => {
                     <button
                       key={t.value}
                       className={`px-2 py-0.5 rounded text-xs transition-colors ${
-                        currentSlide.notes.tone === t.value
-                          ? 'bg-primary/10 text-primary font-medium'
-                          : 'text-muted-foreground hover:text-foreground'
+                        currentSlide.notes.tone === t.value ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground hover:text-foreground'
                       }`}
                       onClick={() => {
                         const updated = slides.map((s, i) =>
@@ -337,7 +364,7 @@ const WorkspacePage = () => {
                   ))}
                   <span className="w-px h-4 bg-border mx-1" />
                   <button className="p-1 rounded hover:bg-secondary transition-colors" title="刷新注释"
-                    onClick={() => callSlideAI('请为这一页重新生成演讲注释，包括这页讲什么、补充说明和过渡句')}>
+                    onClick={() => callSlideAI('请为这一页重新生成演讲注释')}>
                     <RefreshCw className="w-3 h-3 text-muted-foreground" />
                   </button>
                   <button className="p-1 rounded hover:bg-secondary transition-colors" title="复制注释"
@@ -355,12 +382,7 @@ const WorkspacePage = () => {
             </div>
             <AnimatePresence initial={false}>
               {notesOpen && currentSlide && (
-                <motion.div
-                  initial={{ height: 0 }}
-                  animate={{ height: 100 }}
-                  exit={{ height: 0 }}
-                  className="overflow-hidden"
-                >
+                <motion.div initial={{ height: 0 }} animate={{ height: 100 }} exit={{ height: 0 }} className="overflow-hidden">
                   <NotesPanel notes={currentSlide.notes} />
                 </motion.div>
               )}
@@ -375,9 +397,7 @@ const WorkspacePage = () => {
               key={slide.id}
               onClick={() => setCurrentSlideIndex(i)}
               className={`group rounded-lg border-2 p-2.5 cursor-pointer transition-all ${
-                i === currentSlideIndex
-                  ? 'border-primary bg-primary/5'
-                  : 'border-transparent hover:border-border'
+                i === currentSlideIndex ? 'border-primary bg-primary/5' : 'border-transparent hover:border-border'
               }`}
             >
               <div className="flex items-center justify-between mb-1">
@@ -410,7 +430,6 @@ const WorkspacePage = () => {
   );
 };
 
-// Slide editor
 function SlideEditor({ slide, onAiAction, aiLoading }: { slide: Slide; onAiAction: (instruction: string) => void; aiLoading: boolean }) {
   const isCover = slide.layout === 'cover';
 
@@ -435,16 +454,14 @@ function SlideEditor({ slide, onAiAction, aiLoading }: { slide: Slide; onAiActio
             <DropdownMenuItem onClick={() => onAiAction('请精简这一页的内容，只保留最核心的要点')}>精简内容</DropdownMenuItem>
             <DropdownMenuItem onClick={() => onAiAction('请让这一页的内容更适合口头讲解，语言更自然')}>更适合讲解</DropdownMenuItem>
             <DropdownMenuItem onClick={() => onAiAction('请换一种排版方式，比如改用分栏布局或关键发现块')}>换排版</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => onAiAction('请为这一页生成演讲注释，包括这页讲什么、补充说明和过渡句')}>生成注释</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onAiAction('请为这一页生成演讲注释')}>生成注释</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
 
-      <div
-        className={`bg-card border border-border rounded-xl shadow-sm overflow-hidden ${
-          isCover ? 'aspect-[16/9] flex flex-col items-center justify-center text-center p-12' : 'p-8'
-        }`}
-      >
+      <div className={`bg-card border border-border rounded-xl shadow-sm overflow-hidden ${
+        isCover ? 'aspect-[16/9] flex flex-col items-center justify-center text-center p-12' : 'p-8'
+      }`}>
         {isCover ? (
           <>
             <h2 className="text-2xl font-display font-bold text-foreground mb-3">{slide.title}</h2>
@@ -455,17 +472,21 @@ function SlideEditor({ slide, onAiAction, aiLoading }: { slide: Slide; onAiActio
         ) : (
           <>
             <h2 className="text-xl font-display font-bold text-foreground mb-5">{slide.title}</h2>
-            <div className={`space-y-2.5 ${slide.layout === 'title-two-column' ? 'grid grid-cols-2 gap-4 space-y-0' : ''}`}>
+            <div className={`space-y-2.5 ${slide.layout === 'title-two-column' ? 'grid grid-cols-2 gap-4 space-y-0' : ''} ${slide.layout === 'title-quad' ? 'grid grid-cols-2 gap-3 space-y-0' : ''}`}>
               {slide.contentBlocks.map(b => (
                 <div key={b.id} className={`${
                   b.type === 'subpoint' ? 'ml-5' : ''
                 } ${b.type === 'finding' ? 'bg-primary/5 border border-primary/15 rounded-lg p-3' : ''}
-                ${b.type === 'summary' ? 'border-t border-border pt-3 mt-4' : ''}`}>
+                ${b.type === 'summary' ? 'border-t border-border pt-3 mt-4' : ''}
+                ${b.type === 'quad-item' ? 'bg-secondary/50 rounded-lg p-3' : ''}
+                ${b.type === 'timeline-item' ? 'border-l-2 border-primary/30 pl-3 py-1' : ''}`}>
                   <p className={`text-sm ${
                     b.type === 'point' ? 'text-foreground flex items-start gap-2 before:content-["•"] before:text-primary before:font-bold' :
                     b.type === 'subpoint' ? 'text-muted-foreground flex items-start gap-2 before:content-["–"] before:text-muted-foreground' :
                     b.type === 'finding' ? 'text-primary font-medium' :
                     b.type === 'summary' ? 'text-muted-foreground italic' :
+                    b.type === 'quad-item' ? 'text-foreground font-medium' :
+                    b.type === 'timeline-item' ? 'text-foreground' :
                     'text-foreground'
                   }`}>
                     {b.content}
@@ -480,7 +501,6 @@ function SlideEditor({ slide, onAiAction, aiLoading }: { slide: Slide; onAiActio
   );
 }
 
-// Notes panel - horizontal layout
 function NotesPanel({ notes }: { notes: SlideNotes }) {
   return (
     <div className="px-4 pb-3 flex gap-6 text-xs overflow-x-auto">

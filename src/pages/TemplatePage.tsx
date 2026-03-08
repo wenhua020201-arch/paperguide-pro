@@ -19,53 +19,84 @@ const DENSITIES: { value: ContentDensity; label: string; desc: string }[] = [
   { value: 'detailed', label: '详细', desc: '完整论证与细节' },
 ];
 
-// Built-in Transformer-based previews showing clear style differences
-const TEMPLATE_PREVIEWS: Record<TemplateName, { title: string; points: string[]; accent: string }[]> = {
-  seminar: [
-    { title: '研究问题与动机', points: ['RNN 顺序计算瓶颈 → 能否完全去掉循环？', '核心假设：纯注意力足以建模序列'], accent: 'hsl(215, 65%, 42%)' },
-    { title: '方法批判性分析', points: ['Scaled Dot-Product 缩放因子的必要性', '多头注意力 vs 单头：消融实验验证', '位置编码选择：固定 vs 可学习'], accent: 'hsl(195, 70%, 45%)' },
-    { title: '实验评价与复现性', points: ['BLEU 28.4 是否充分说明优势？', '训练成本对比是否公平？', '消融实验的完备性讨论'], accent: 'hsl(155, 60%, 42%)' },
-  ],
-  course: [
-    { title: '什么是序列建模？', points: ['从翻译任务说起：输入一句话→输出另一种语言', 'RNN 像"流水线"一步步处理，速度慢', '为什么需要新方法？'], accent: 'hsl(260, 55%, 50%)' },
-    { title: '注意力机制直觉', points: ['类比：阅读时眼睛会"关注"重要的词', 'Query-Key-Value 三元组的含义', '多头 = 从多个角度同时关注'], accent: 'hsl(215, 65%, 42%)' },
-    { title: '总结与课后思考', points: ['Transformer 的三个核心创新', '思考题：为什么需要位置编码？', '延伸阅读：BERT 和 GPT'], accent: 'hsl(45, 80%, 50%)' },
-  ],
-  proposal: [
-    { title: '研究脉络：从 RNN 到 Transformer', points: ['2014: Seq2Seq + Attention', '2015: 注意力对齐可视化', '2017: 完全去除循环 → Transformer'], accent: 'hsl(340, 60%, 50%)' },
-    { title: '相关工作对比', points: ['RNN+Attention vs CNN (ByteNet) vs Transformer', '计算复杂度 O(n²) vs O(n·k) vs O(n²)', '并行度：不可并行 vs 部分 vs 完全'], accent: 'hsl(215, 65%, 42%)' },
-    { title: '研究启发与开放问题', points: ['如何降低 O(n²) → Linear Attention', '位置编码的更好方案：RoPE, ALiBi', '跨模态统一架构的可能性'], accent: 'hsl(155, 60%, 42%)' },
-  ],
-  crossfield: [
-    { title: '一句话理解 Transformer', points: ['想象一个"全知全能"的翻译官', '不是逐字翻译，而是同时看完整句话再翻', '类比：不用排队，所有人同时工作'], accent: 'hsl(25, 70%, 50%)' },
-    { title: '为什么值得关注？', points: ['不只是翻译：ChatGPT、图像生成都用它', '影响了生物(蛋白质预测)、医学、金融', '被称为"AI 的基础设施"'], accent: 'hsl(195, 70%, 45%)' },
-    { title: '核心发现（无公式版）', points: ['翻译质量：超过当时所有方法', '训练速度：快了 4 倍以上', '一个架构统治所有任务'], accent: 'hsl(260, 55%, 50%)' },
-  ],
+// Each template: ONE slide about "What is Transformer", different style
+const TEMPLATE_SINGLE_SLIDE: Record<TemplateName, { slideTitle: string; points: string[]; style: string; accent: string }> = {
+  seminar: {
+    slideTitle: '方法分析：Transformer 核心架构',
+    points: [
+      '核心假设：纯注意力机制是否足以替代循环结构？→ 实验验证支持',
+      'Scaled Dot-Product Attention 中 √d_k 的缩放因子：防止 softmax 梯度消失',
+      '多头注意力 vs 单头：消融实验显示 h=8 时 BLEU 最优，h=1 降 0.9',
+      '位置编码选择：固定正弦 vs 可学习，实验表明差异不显著（Table 3）',
+      '关键质疑：O(n²) 复杂度在长序列上是否可接受？',
+    ],
+    style: '批判性分析，关注实验证据和方法合理性',
+    accent: 'hsl(215, 65%, 42%)',
+  },
+  course: {
+    slideTitle: '什么是 Transformer？',
+    points: [
+      '想象你在翻译一句话：RNN 像"逐字朗读"，每次只看一个字',
+      'Transformer 的做法不同：它一次看完整句话，然后找出哪些词跟哪些词相关',
+      '这种"找关系"的能力叫做"注意力机制"——就像你读文章时，眼睛会自动聚焦到关键词上',
+      '多头注意力 = 从多个角度同时关注（比如语法关系、语义关系、位置关系）',
+      '为什么需要位置编码？因为 Transformer 同时看所有词，需要额外告诉它词的顺序',
+    ],
+    style: '从直觉出发，类比解释，适合初学者',
+    accent: 'hsl(260, 55%, 50%)',
+  },
+  proposal: {
+    slideTitle: '研究演进：从注意力到 Transformer',
+    points: [
+      '2014 Bahdanau: Seq2Seq + Attention，首次引入对齐机制',
+      '2015 Luong: 简化注意力计算，提出 Global vs Local Attention',
+      '2016 ByteNet/ConvS2S: 尝试用 CNN 替代 RNN，提升并行度',
+      '2017 Vaswani: 完全移除循环 → Transformer，并行度 O(1)，性能 SOTA',
+      '开放问题：O(n²) 复杂度 → 后续 Linear Attention、Sparse Attention 方向',
+    ],
+    style: '时间线脉络，对比方法演进，指出研究方向',
+    accent: 'hsl(340, 60%, 50%)',
+  },
+  crossfield: {
+    slideTitle: '一句话理解 Transformer',
+    points: [
+      '核心思想：不用排队，让所有人同时工作——这就是 Transformer 最大的创新',
+      '类比：传统方法像流水线（一个一个处理），Transformer 像圆桌会议（所有人同时讨论）',
+      '为什么重要：ChatGPT、图像生成、蛋白质预测都基于这个架构',
+      '关键突破：翻译质量首次超过所有传统方法，训练速度快 4 倍',
+      '对其他领域的启示：任何需要"理解关系"的问题，都可以尝试这个思路',
+    ],
+    style: '零术语，生活化类比，聚焦"为什么重要"',
+    accent: 'hsl(25, 70%, 50%)',
+  },
 };
+
+function SingleSlidePreview({ data }: { data: typeof TEMPLATE_SINGLE_SLIDE[TemplateName] }) {
+  return (
+    <div className="bg-card border border-border rounded-lg p-4 relative overflow-hidden">
+      <div className="absolute -top-3 -right-3 w-16 h-16 rounded-full" style={{ background: data.accent, opacity: 0.1 }} />
+      <div className="w-8 h-0.5 rounded-full mb-2" style={{ background: data.accent }} />
+      <p className="text-xs font-display font-semibold text-foreground mb-3 leading-tight">{data.slideTitle}</p>
+      <div className="space-y-1.5">
+        {data.points.map((p, i) => (
+          <div key={i} className="flex items-start gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full mt-1 flex-shrink-0" style={{ background: data.accent }} />
+            <span className="text-[10px] text-muted-foreground leading-relaxed">{p}</span>
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 pt-2 border-t border-border">
+        <p className="text-[9px] text-muted-foreground/60 italic">风格：{data.style}</p>
+      </div>
+    </div>
+  );
+}
 
 const DENSITY_PREVIEW: Record<ContentDensity, { title: string; points: string[] }> = {
   concise: { title: '核心架构', points: ['多头自注意力', '残差 + LayerNorm'] },
   standard: { title: '核心架构', points: ['编码器-解码器各 6 层', '多头自注意力（Multi-Head）', '残差连接 + 层归一化', '前馈网络（FFN）'] },
   detailed: { title: '核心架构', points: ['编码器-解码器各 6 层，每层两个子层', '多头自注意力：Q/K/V 投影到 h 个子空间并行计算', 'Attention(Q,K,V) = softmax(QK^T/√d_k)V', '残差连接 + 层归一化保证梯度流通', '位置编码：正弦/余弦函数注入位置信息', 'FFN：两层线性变换 + ReLU 激活'] },
 };
-
-function MiniSlide({ title, points, accent }: { title: string; points: string[]; accent: string }) {
-  return (
-    <div className="bg-card border border-border rounded-lg p-3 relative overflow-hidden aspect-[16/10]">
-      <div className="absolute -top-2 -right-2 w-12 h-12 rounded-full" style={{ background: accent, opacity: 0.12 }} />
-      <div className="w-6 h-0.5 rounded-full mb-1.5" style={{ background: accent }} />
-      <p className="text-[10px] font-display font-semibold text-foreground mb-1.5 leading-tight">{title}</p>
-      <div className="space-y-0.5">
-        {points.map((p, i) => (
-          <div key={i} className="flex items-start gap-1">
-            <span className="w-1 h-1 rounded-full mt-1 flex-shrink-0" style={{ background: accent }} />
-            <span className="text-[8px] text-muted-foreground leading-tight">{p}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 function DensitySlide({ title, points, active }: { title: string; points: string[]; active: boolean }) {
   return (
@@ -103,11 +134,11 @@ const TemplatePage = () => {
 
       <main className="flex-1 px-6 py-8">
         <div className="max-w-5xl mx-auto space-y-10">
-          <div className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
             {TEMPLATES.map((tpl) => {
               const Icon = TEMPLATE_ICONS[tpl.id];
               const isSelected = selected === tpl.id;
-              const previews = TEMPLATE_PREVIEWS[tpl.id];
+              const preview = TEMPLATE_SINGLE_SLIDE[tpl.id];
               return (
                 <motion.div
                   key={tpl.id}
@@ -138,11 +169,7 @@ const TemplatePage = () => {
                       </div>
                     </div>
                   </div>
-                  <div className="grid grid-cols-3 gap-3 pl-12">
-                    {previews.map((s, i) => (
-                      <MiniSlide key={i} {...s} />
-                    ))}
-                  </div>
+                  <SingleSlidePreview data={preview} />
                 </motion.div>
               );
             })}
@@ -178,9 +205,28 @@ const TemplatePage = () => {
               const data = JSON.parse(saved);
               data.template = selected;
               data.density = density;
+              data.step = 'workspace';
               delete data.slides;
               delete data.article;
               localStorage.setItem('current_project', JSON.stringify(data));
+
+              // Update project history
+              const STORAGE_KEY = 'paper-guide-projects';
+              const raw = localStorage.getItem(STORAGE_KEY);
+              if (raw) {
+                const projects = JSON.parse(raw);
+                const TEMPLATE_LABELS: Record<string, string> = {
+                  seminar: '组会汇报版', course: '课程 Presentation',
+                  proposal: '开题/综述版', crossfield: '跨方向交流版',
+                };
+                const idx = projects.findIndex((p: any) => p.id === data.id);
+                if (idx >= 0) {
+                  projects[idx].template = TEMPLATE_LABELS[selected] || selected;
+                  projects[idx].step = 'workspace';
+                  projects[idx].updatedAt = new Date().toISOString();
+                  localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
+                }
+              }
             }
           } catch {}
           navigate('/workspace');
