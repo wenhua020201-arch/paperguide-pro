@@ -33,11 +33,51 @@ const WorkspacePage = () => {
   const article = MOCK_PROJECT.article;
   const currentSlide = slides[currentSlideIndex];
 
+  const callSlideAI = async (instruction: string) => {
+    if (!currentSlide || aiLoading) return;
+    setAiLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('slide-ai', {
+        body: {
+          messages: [{ role: 'user', content: instruction }],
+          slideContext: {
+            title: currentSlide.title,
+            contentBlocks: currentSlide.contentBlocks,
+            notes: currentSlide.notes,
+            layout: currentSlide.layout,
+          },
+        },
+      });
+      if (error) throw error;
+      if (data?.error) {
+        toast.error(data.error);
+        return;
+      }
+      // Apply AI result to slide
+      const updated = slides.map((s, i) => {
+        if (i !== currentSlideIndex) return s;
+        return {
+          ...s,
+          title: data.title || s.title,
+          contentBlocks: data.contentBlocks || s.contentBlocks,
+          notes: data.notes ? { ...s.notes, ...data.notes } : s.notes,
+        };
+      });
+      setSlides(updated);
+      toast.success('AI 已更新页面内容');
+    } catch (e: any) {
+      console.error('AI error:', e);
+      toast.error('AI 请求失败，请稍后再试');
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
   const handlePromptSubmit = () => {
     if (!promptText.trim()) return;
-    // TODO: send to AI
-    console.log('Prompt for slide', currentSlide?.id, ':', promptText);
+    const text = promptText;
     setPromptText('');
+    callSlideAI(text);
   };
 
   return (
