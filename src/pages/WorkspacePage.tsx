@@ -34,23 +34,12 @@ const WorkspacePage = () => {
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
   const [articleOpen, setArticleOpen] = useState(true);
   const [pdfOpen, setPdfOpen] = useState(true);
-  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [notesOpen, setNotesOpen] = useState(true);
   const [promptText, setPromptText] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const hasGenerated = useRef(false);
   const currentSlide = slides[currentSlideIndex];
-
-  // Load PDF
-  useEffect(() => {
-    getCurrentPdfUrl().then(url => {
-      if (url) setPdfUrl(url);
-    }).catch(() => {});
-    return () => {
-      if (pdfUrl) URL.revokeObjectURL(pdfUrl);
-    };
-  }, []);
 
   // On mount, check if we need to generate workspace from AI
   useEffect(() => {
