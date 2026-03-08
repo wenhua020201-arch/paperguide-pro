@@ -129,7 +129,17 @@ const OutlinePage = () => {
     dragNodeId.current = null;
   };
 
-  const paper = MOCK_PAPER;
+  // Save outline changes back to localStorage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('current_project');
+      if (saved) {
+        const data = JSON.parse(saved);
+        data.outline = outline;
+        localStorage.setItem('current_project', JSON.stringify(data));
+      }
+    } catch {}
+  }, [outline]);
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
