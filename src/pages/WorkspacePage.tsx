@@ -164,7 +164,7 @@ const WorkspacePage = () => {
                 animate={{ opacity: 1 }}
                 className="w-full max-w-3xl"
               >
-                <SlideEditor slide={currentSlide} />
+                <SlideEditor slide={currentSlide} onAiAction={callSlideAI} aiLoading={aiLoading} />
               </motion.div>
             )}
 
