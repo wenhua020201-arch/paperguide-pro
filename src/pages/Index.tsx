@@ -10,6 +10,7 @@ interface ProjectRecord {
   template: string;
   slideCount: number;
   updatedAt: string;
+  step?: string;
 }
 
 const STORAGE_KEY = 'paper-guide-projects';
@@ -26,31 +27,41 @@ const saveProjects = (projects: ProjectRecord[]) => {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
 };
 
-// Seed a demo project if none exist
-const ensureDemoProject = () => {
-  const projects = getProjects();
-  if (projects.length === 0) {
-    const demo: ProjectRecord = {
-      id: 'demo-project',
-      title: 'Attention Is All You Need',
-      template: '组会汇报版',
-      slideCount: 9,
-      updatedAt: new Date().toISOString(),
-    };
-    saveProjects([demo]);
-    return [demo];
-  }
-  return projects;
+const TEMPLATE_LABELS: Record<string, string> = {
+  seminar: '组会汇报版',
+  course: '课程 Presentation',
+  proposal: '开题/综述版',
+  crossfield: '跨方向交流版',
+};
+
+const STEP_LABELS: Record<string, string> = {
+  outline: '大纲编辑中',
+  template: '选择模板',
+  workspace: '工作台',
+  done: '已完成',
 };
 
 const Index = () => {
   const navigate = useNavigate();
-  const [projects, setProjects] = useState<ProjectRecord[]>(ensureDemoProject);
+  const [projects, setProjects] = useState<ProjectRecord[]>(getProjects);
 
   const deleteProject = (id: string) => {
     const updated = projects.filter(p => p.id !== id);
     saveProjects(updated);
     setProjects(updated);
+  };
+
+  const resumeProject = (project: ProjectRecord) => {
+    // Load this project's data as current_project
+    // The data is already stored - just navigate to the right step
+    const step = project.step || 'outline';
+    if (step === 'workspace' || step === 'done') {
+      navigate('/workspace');
+    } else if (step === 'template') {
+      navigate('/template');
+    } else {
+      navigate('/outline');
+    }
   };
 
   const formatDate = (iso: string) => {
@@ -60,22 +71,15 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* Header */}
       <header className="border-b border-border px-6 py-4">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <h1 className="text-xl font-display font-semibold text-foreground">📄 论文导读助手</h1>
         </div>
       </header>
 
-      {/* Main */}
       <main className="flex-1 px-6 py-8">
         <div className="max-w-4xl mx-auto">
-          {/* Hero */}
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-center mb-12"
-          >
+          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-display font-bold text-foreground leading-tight mb-3">
               上传论文，快速生成
               <span className="text-primary"> 可讲的导读内容</span>
@@ -89,7 +93,6 @@ const Index = () => {
                 上传论文
               </Button>
               <Button size="lg" variant="outline" className="px-8" onClick={() => {
-                // Clear current_project so workspace uses mock data
                 localStorage.removeItem('current_project');
                 navigate('/workspace');
               }}>
@@ -99,12 +102,7 @@ const Index = () => {
             </div>
           </motion.div>
 
-          {/* Project History */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.15 }}
-          >
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5" />
@@ -123,17 +121,20 @@ const Index = () => {
                 {projects.map((project) => (
                   <div
                     key={project.id}
-                    onClick={() => navigate('/workspace')}
+                    onClick={() => resumeProject(project)}
                     className="group bg-card border border-border rounded-lg px-5 py-4 flex items-center justify-between cursor-pointer hover:border-primary/30 transition-colors"
                   >
                     <div className="flex items-center gap-4 min-w-0">
                       <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                        <FileText className="w-4.5 h-4.5 text-primary" />
+                        <FileText className="w-4 h-4 text-primary" />
                       </div>
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-foreground truncate">{project.title}</p>
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          {project.template} · {project.slideCount} 页 · {formatDate(project.updatedAt)}
+                          {TEMPLATE_LABELS[project.template] || project.template}
+                          {project.slideCount > 0 && ` · ${project.slideCount} 页`}
+                          {project.step && ` · ${STEP_LABELS[project.step] || project.step}`}
+                          {' · '}{formatDate(project.updatedAt)}
                         </p>
                       </div>
                     </div>

@@ -1,10 +1,11 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Upload, FileText, CheckCircle2, Loader2, ArrowLeft, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { savePdfFile } from '@/lib/pdfStorage';
 
 const PARSE_STEPS = [
   '正在提取论文文本…',
@@ -25,14 +26,14 @@ async function extractPdfText(file: File): Promise<string> {
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i);
     const textContent = await page.getTextContent();
-    const text = textContent.items
-      .map((item: any) => item.str)
-      .join(' ');
+    const text = textContent.items.map((item: any) => item.str).join(' ');
     pages.push(text);
   }
 
   return pages.join('\n\n');
 }
+
+const STORAGE_KEY = 'paper-guide-projects';
 
 const UploadPage = () => {
   const navigate = useNavigate();
@@ -55,9 +56,12 @@ const UploadPage = () => {
     abortRef.current = false;
 
     try {
-      // Step 1: Extract text
+      // Step 1: Extract text + save PDF to IndexedDB
       setStepIndex(1);
-      const paperText = await extractPdfText(f);
+      const [paperText] = await Promise.all([
+        extractPdfText(f),
+        savePdfFile(f),
+      ]);
       if (abortRef.current) return;
 
       if (paperText.trim().length < 100) {
@@ -83,8 +87,8 @@ const UploadPage = () => {
         throw new Error('AI 返回的数据不完整，请重试');
       }
 
-      // Normalize outline: add ids, parentIds, levels
-      const normalizeOutline = (node: any, parentId: string | null = null, level: number = 0, order: number = 0): any => ({
+      // Normalize outline
+      const normalizeOutline = (node: any, parentId: string | null = null, level = 0, order = 0): any => ({
         id: `n-${level}-${order}-${Date.now()}`,
         parentId,
         level,
@@ -98,32 +102,36 @@ const UploadPage = () => {
 
       const outline = normalizeOutline(data.outline);
 
-      // Save PDF as base64 for outline page viewer
-      try {
-        const reader = new FileReader();
-        const pdfBase64: string = await new Promise((resolve, reject) => {
-          reader.onload = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(f);
-        });
-        localStorage.setItem('current_pdf_base64', pdfBase64);
-      } catch (e) {
-        console.warn('Failed to store PDF base64:', e);
-      }
-
-      // Save to localStorage for next pages
+      // Create project record
+      const projectId = `proj-${Date.now()}`;
       const projectData = {
+        id: projectId,
         paper: data.paper,
         outline,
-        paperText: paperText.substring(0, 50000), // keep for reference
+        paperText: paperText.substring(0, 50000),
         fileName: f.name,
         createdAt: new Date().toISOString(),
+        step: 'outline', // track progress
       };
       localStorage.setItem('current_project', JSON.stringify(projectData));
 
-      setStepIndex(PARSE_STEPS.length);
+      // Save to project history
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        const projects = raw ? JSON.parse(raw) : [];
+        // Remove demo project if exists
+        const filtered = projects.filter((p: any) => p.id !== 'demo-project');
+        filtered.unshift({
+          id: projectId,
+          title: data.paper.title || f.name,
+          template: '未选择',
+          slideCount: 0,
+          updatedAt: new Date().toISOString(),
+        });
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(filtered));
+      } catch {}
 
-      // Navigate after brief pause
+      setStepIndex(PARSE_STEPS.length);
       setTimeout(() => navigate('/outline'), 800);
 
     } catch (e: any) {
@@ -173,7 +181,6 @@ const UploadPage = () => {
             </motion.div>
           ) : (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-              {/* File card */}
               <div className="bg-card border border-border rounded-lg p-4 flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
                   <FileText className="w-5 h-5 text-primary" />
@@ -191,17 +198,11 @@ const UploadPage = () => {
                 )}
               </div>
 
-              {/* Steps */}
               <div className="space-y-3">
                 <AnimatePresence>
                   {PARSE_STEPS.map((step, i) => (
                     i <= stepIndex && (
-                      <motion.div
-                        key={i}
-                        initial={{ opacity: 0, x: -8 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        className="flex items-center gap-2.5 text-sm"
-                      >
+                      <motion.div key={i} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} className="flex items-center gap-2.5 text-sm">
                         {i < stepIndex ? (
                           <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
                         ) : error ? (
@@ -209,30 +210,22 @@ const UploadPage = () => {
                         ) : (
                           <Loader2 className="w-4 h-4 text-primary animate-spin flex-shrink-0" />
                         )}
-                        <span className={i < stepIndex ? 'text-muted-foreground' : 'text-foreground'}>
-                          {step}
-                        </span>
+                        <span className={i < stepIndex ? 'text-muted-foreground' : 'text-foreground'}>{step}</span>
                       </motion.div>
                     )
                   ))}
                 </AnimatePresence>
               </div>
 
-              {/* Error */}
               {error && (
                 <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3 text-sm text-destructive">
                   {error}
-                  <Button variant="outline" size="sm" className="mt-2 w-full" onClick={() => {
-                    setFile(null);
-                    setError(null);
-                    setParsing(false);
-                  }}>
+                  <Button variant="outline" size="sm" className="mt-2 w-full" onClick={() => { setFile(null); setError(null); setParsing(false); }}>
                     重新上传
                   </Button>
                 </div>
               )}
 
-              {/* Progress bar */}
               {!error && (
                 <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
                   <motion.div
