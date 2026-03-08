@@ -10,8 +10,8 @@ serve(async (req) => {
 
   try {
     const { messages, slideContext } = await req.json();
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+    const DASHSCOPE_API_KEY = Deno.env.get("DASHSCOPE_API_KEY");
+    if (!DASHSCOPE_API_KEY) throw new Error("DASHSCOPE_API_KEY is not configured");
 
     const systemPrompt = `你是一个学术论文导读助手 AI。你帮助用户编辑和优化 PPT 演示文稿内容。
 
@@ -19,7 +19,7 @@ serve(async (req) => {
 
 规则：
 - 返回修改后的 JSON 格式内容，包含 title 和 contentBlocks 数组
-- contentBlocks 中每个元素有 id, type (point/subpoint/finding/summary/text), content
+- contentBlocks 中每个元素有 id, type (point/subpoint/finding/summary/text/heading), content
 - 保持学术严谨性
 - 中文回复
 - 如果用户要求精简，减少要点数量但保留核心信息
@@ -30,14 +30,14 @@ serve(async (req) => {
 当前页面上下文：
 ${slideContext ? JSON.stringify(slideContext) : '无'}`;
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const response = await fetch("https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        Authorization: `Bearer ${DASHSCOPE_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: "qwen3-max",
         messages: [
           { role: "system", content: systemPrompt },
           ...messages,
@@ -85,7 +85,7 @@ ${slideContext ? JSON.stringify(slideContext) : '无'}`;
     if (!response.ok) {
       const status = response.status;
       const text = await response.text();
-      console.error("AI gateway error:", status, text);
+      console.error("DashScope API error:", status, text);
 
       if (status === 429) {
         return new Response(JSON.stringify({ error: "请求过于频繁，请稍后再试" }), {
@@ -94,12 +94,12 @@ ${slideContext ? JSON.stringify(slideContext) : '无'}`;
         });
       }
       if (status === 402) {
-        return new Response(JSON.stringify({ error: "AI 额度已用完，请充值后再试" }), {
+        return new Response(JSON.stringify({ error: "API 额度已用完，请充值后再试" }), {
           status: 402,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      return new Response(JSON.stringify({ error: "AI 服务出错" }), {
+      return new Response(JSON.stringify({ error: `AI 服务出错 (${status})` }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -110,10 +110,25 @@ ${slideContext ? JSON.stringify(slideContext) : '无'}`;
     // Extract tool call result
     const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
     if (toolCall?.function?.arguments) {
-      const result = JSON.parse(toolCall.function.arguments);
-      return new Response(JSON.stringify(result), {
+      const args = typeof toolCall.function.arguments === 'string' 
+        ? JSON.parse(toolCall.function.arguments) 
+        : toolCall.function.arguments;
+      return new Response(JSON.stringify(args), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // Fallback: try to parse content directly if no tool call
+    const content = data.choices?.[0]?.message?.content;
+    if (content) {
+      try {
+        const parsed = JSON.parse(content);
+        return new Response(JSON.stringify(parsed), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      } catch {
+        // content is not JSON
+      }
     }
 
     return new Response(JSON.stringify({ error: "AI 未返回有效结果" }), {
