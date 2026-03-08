@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { getCurrentPdfUrl } from '@/lib/pdfStorage';
+import PdfViewer from '@/components/PdfViewer';
 
 const TONE_OPTIONS: { value: SlideNotes['tone']; label: string }[] = [
   { value: 'concise', label: '简洁' },
