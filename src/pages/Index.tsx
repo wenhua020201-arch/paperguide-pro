@@ -88,7 +88,11 @@ const Index = () => {
                 <Upload className="w-5 h-5 mr-2" />
                 上传论文
               </Button>
-              <Button size="lg" variant="outline" className="px-8" onClick={() => navigate('/workspace')}>
+              <Button size="lg" variant="outline" className="px-8" onClick={() => {
+                // Clear current_project so workspace uses mock data
+                localStorage.removeItem('current_project');
+                navigate('/workspace');
+              }}>
                 <Eye className="w-5 h-5 mr-2" />
                 查看示例
               </Button>
