@@ -3,14 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, ChevronRight, ChevronDown, GripVertical, MoreHorizontal,
-  Plus, Trash2, ArrowUp, ArrowDown, ChevronsUp, ChevronsDown, Indent, Outdent,
+  Plus, Trash2, ArrowUp, ArrowDown, ChevronsUp, ChevronsDown,
   FileText as FileTextIcon, Check, X, PanelLeftClose, PanelLeftOpen
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { MOCK_PAPER, MOCK_OUTLINE, MOCK_ARTICLE } from '@/data/mockData';
-import type { OutlineNode, PaperMeta, GuideArticle } from '@/types';
+import { MOCK_PAPER, MOCK_OUTLINE } from '@/data/mockData';
+import type { OutlineNode, PaperMeta } from '@/types';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
@@ -19,9 +19,9 @@ const OutlinePage = () => {
   const navigate = useNavigate();
   const [outline, setOutline] = useState<OutlineNode>(MOCK_OUTLINE);
   const [paper, setPaper] = useState<PaperMeta>(MOCK_PAPER);
-  const [article, setArticle] = useState<GuideArticle>(MOCK_ARTICLE);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [articleOpen, setArticleOpen] = useState(true);
+  const [pdfOpen, setPdfOpen] = useState(true);
+  const [pdfDataUrl, setPdfDataUrl] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -30,8 +30,12 @@ const OutlinePage = () => {
         const data = JSON.parse(saved);
         if (data.outline) setOutline(data.outline);
         if (data.paper) setPaper(data.paper);
-        if (data.article) setArticle(data.article);
       }
+    } catch {}
+    // Load PDF
+    try {
+      const pdf = localStorage.getItem('current_pdf_base64');
+      if (pdf) setPdfDataUrl(pdf);
     } catch {}
   }, []);
 
@@ -117,7 +121,6 @@ const OutlinePage = () => {
     setOutline(reorder(outline));
   };
 
-  // Drag and drop
   const dragNodeId = useRef<string | null>(null);
   const dragParentId = useRef<string | null>(null);
 
@@ -166,42 +169,42 @@ const OutlinePage = () => {
           <h1 className="text-lg font-display font-semibold text-foreground">导读大纲</h1>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={() => setArticleOpen(!articleOpen)}>
-            {articleOpen ? <PanelLeftClose className="w-4 h-4" /> : <PanelLeftOpen className="w-4 h-4" />}
-            <span className="ml-1 text-xs">文章</span>
+          <Button variant="ghost" size="sm" onClick={() => setPdfOpen(!pdfOpen)}>
+            {pdfOpen ? <PanelLeftClose className="w-4 h-4" /> : <PanelLeftOpen className="w-4 h-4" />}
+            <span className="ml-1 text-xs">原文</span>
           </Button>
         </div>
       </header>
 
       <div className="flex-1 flex overflow-hidden">
-        {/* Left - Article preview */}
+        {/* Left - PDF viewer */}
         <AnimatePresence initial={false}>
-          {articleOpen && (
+          {pdfOpen && (
             <motion.aside
               initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 340, opacity: 1 }}
+              animate={{ width: 420, opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
               transition={{ duration: 0.2 }}
               className="border-r border-border overflow-hidden flex-shrink-0"
             >
-              <div className="w-[340px] h-full overflow-y-auto p-4">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-4">导读文章预览</p>
-                {article.sections.length > 0 ? (
-                  article.sections.map((section) => (
-                    <div key={section.id} className="mb-6">
-                      <h3 className="text-sm font-display font-semibold text-foreground mb-2">{section.title}</h3>
-                      {section.paragraphs.map((p) => (
-                        <p key={p.id} className="text-xs leading-relaxed text-muted-foreground mb-3 px-2 py-1.5">
-                          {p.content}
-                        </p>
-                      ))}
+              <div className="w-[420px] h-full flex flex-col">
+                <div className="px-3 py-2 border-b border-border flex items-center gap-2">
+                  <FileTextIcon className="w-3.5 h-3.5 text-muted-foreground" />
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">论文原文</span>
+                </div>
+                <div className="flex-1 overflow-hidden">
+                  {pdfDataUrl ? (
+                    <iframe
+                      src={pdfDataUrl}
+                      className="w-full h-full border-0"
+                      title="论文 PDF"
+                    />
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
+                      <p>未找到 PDF 文件</p>
                     </div>
-                  ))
-                ) : (
-                  <div className="text-sm text-muted-foreground text-center mt-12">
-                    <p>文章将在工作台生成后显示</p>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             </motion.aside>
           )}

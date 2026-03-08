@@ -98,6 +98,19 @@ const UploadPage = () => {
 
       const outline = normalizeOutline(data.outline);
 
+      // Save PDF as base64 for outline page viewer
+      try {
+        const reader = new FileReader();
+        const pdfBase64: string = await new Promise((resolve, reject) => {
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(f);
+        });
+        localStorage.setItem('current_pdf_base64', pdfBase64);
+      } catch (e) {
+        console.warn('Failed to store PDF base64:', e);
+      }
+
       // Save to localStorage for next pages
       const projectData = {
         paper: data.paper,
