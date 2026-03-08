@@ -19,13 +19,16 @@ serve(async (req) => {
 1. paper: 论文元数据（标题、作者列表、年份、关键词列表、研究主题、摘要）
 2. outline: 导读大纲树状结构
 
-大纲要求：
+## 大纲要求（极其重要！）
 - 根节点是论文标题
 - 一级节点为主要导读模块（如：研究背景、研究问题、方法、实验设计、主要结果、讨论与评价、启示与展望）
-- 二级节点为具体内容要点
-- 三级节点为更细的子要点（如果有必要）
+- **必须忠实地拆解论文的每一个小节标题**：
+  - 如果论文有 3.1、3.2、3.3，那么每个都要作为独立节点
+  - 如果 3.1 下面有 3.1.1 和 3.1.2，那 3.1.1 和 3.1.2 都要作为 3.1 的子节点，**不要合并**
+  - 每个最细粒度的小节都应该成为独立节点，后续会各自生成一页 PPT
+  - 不要过度整合，宁可多拆也不要少拆
 - 每个节点包含 title（标题）和 description（一句简短说明）
-- 节点数量根据论文内容自适应，不要过少也不要过多
+- 保持论文原有的层级结构，不要自行重组
 
 请用中文回复。`;
 
@@ -64,7 +67,7 @@ serve(async (req) => {
                   },
                   outline: {
                     type: "object",
-                    description: "Root node of the outline tree",
+                    description: "Root node of the outline tree. Must faithfully decompose every subsection (e.g. 3.1.1, 3.1.2) as separate child nodes.",
                     properties: {
                       title: { type: "string" },
                       description: { type: "string" },
@@ -89,6 +92,17 @@ serve(async (req) => {
                                       properties: {
                                         title: { type: "string" },
                                         description: { type: "string" },
+                                        children: {
+                                          type: "array",
+                                          items: {
+                                            type: "object",
+                                            properties: {
+                                              title: { type: "string" },
+                                              description: { type: "string" },
+                                            },
+                                            required: ["title", "description"],
+                                          },
+                                        },
                                       },
                                       required: ["title", "description"],
                                     },
