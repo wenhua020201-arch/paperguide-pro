@@ -1,16 +1,38 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Upload, FileText, CheckCircle2, Loader2, ArrowLeft } from 'lucide-react';
+import { Upload, FileText, CheckCircle2, Loader2, ArrowLeft, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 const PARSE_STEPS = [
+  '正在提取论文文本…',
   '正在识别论文结构…',
   '正在提取核心贡献…',
   '正在分析方法与实验…',
-  '正在生成导读逻辑…',
-  '正在构建大纲节点…',
+  '正在生成导读大纲…',
 ];
+
+async function extractPdfText(file: File): Promise<string> {
+  const pdfjsLib = await import('pdfjs-dist');
+  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  const pages: string[] = [];
+
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const textContent = await page.getTextContent();
+    const text = textContent.items
+      .map((item: any) => item.str)
+      .join(' ');
+    pages.push(text);
+  }
+
+  return pages.join('\n\n');
+}
 
 const UploadPage = () => {
   const navigate = useNavigate();
@@ -18,22 +40,85 @@ const UploadPage = () => {
   const [parsing, setParsing] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
   const [dragOver, setDragOver] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const abortRef = useRef(false);
 
-  const handleFile = (f: File) => {
+  const handleFile = async (f: File) => {
+    if (!f.name.toLowerCase().endsWith('.pdf')) {
+      toast.error('请上传 PDF 格式的文件');
+      return;
+    }
     setFile(f);
     setParsing(true);
     setStepIndex(0);
-  };
+    setError(null);
+    abortRef.current = false;
 
-  useEffect(() => {
-    if (!parsing) return;
-    if (stepIndex >= PARSE_STEPS.length) {
-      const t = setTimeout(() => navigate('/outline'), 600);
-      return () => clearTimeout(t);
+    try {
+      // Step 1: Extract text
+      setStepIndex(1);
+      const paperText = await extractPdfText(f);
+      if (abortRef.current) return;
+
+      if (paperText.trim().length < 100) {
+        throw new Error('无法提取论文文本，请确认 PDF 包含可选中的文字（非扫描版）');
+      }
+
+      // Step 2-4: Call AI to parse
+      setStepIndex(2);
+      const stepTimer = setInterval(() => {
+        setStepIndex(prev => Math.min(prev + 1, PARSE_STEPS.length - 1));
+      }, 3000);
+
+      const { data, error: fnError } = await supabase.functions.invoke('paper-parse', {
+        body: { paperText },
+      });
+
+      clearInterval(stepTimer);
+
+      if (fnError) throw fnError;
+      if (data?.error) throw new Error(data.error);
+
+      if (!data?.paper || !data?.outline) {
+        throw new Error('AI 返回的数据不完整，请重试');
+      }
+
+      // Normalize outline: add ids, parentIds, levels
+      const normalizeOutline = (node: any, parentId: string | null = null, level: number = 0, order: number = 0): any => ({
+        id: `n-${level}-${order}-${Date.now()}`,
+        parentId,
+        level,
+        title: node.title || '未命名',
+        description: node.description || '',
+        order,
+        children: (node.children || []).map((child: any, i: number) =>
+          normalizeOutline(child, `n-${level}-${order}-${Date.now()}`, level + 1, i)
+        ),
+      });
+
+      const outline = normalizeOutline(data.outline);
+
+      // Save to localStorage for next pages
+      const projectData = {
+        paper: data.paper,
+        outline,
+        paperText: paperText.substring(0, 50000), // keep for reference
+        fileName: f.name,
+        createdAt: new Date().toISOString(),
+      };
+      localStorage.setItem('current_project', JSON.stringify(projectData));
+
+      setStepIndex(PARSE_STEPS.length);
+
+      // Navigate after brief pause
+      setTimeout(() => navigate('/outline'), 800);
+
+    } catch (e: any) {
+      console.error('Parse error:', e);
+      setError(e.message || '解析失败，请重试');
+      setParsing(false);
     }
-    const t = setTimeout(() => setStepIndex(i => i + 1), 1200);
-    return () => clearTimeout(t);
-  }, [parsing, stepIndex, navigate]);
+  };
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -84,8 +169,10 @@ const UploadPage = () => {
                   <p className="font-medium text-foreground text-sm truncate">{file.name}</p>
                   <p className="text-xs text-muted-foreground">{(file.size / 1024 / 1024).toFixed(1)} MB</p>
                 </div>
-                {stepIndex >= PARSE_STEPS.length ? (
-                  <CheckCircle2 className="w-5 h-5 text-success" />
+                {error ? (
+                  <AlertCircle className="w-5 h-5 text-destructive" />
+                ) : stepIndex >= PARSE_STEPS.length ? (
+                  <CheckCircle2 className="w-5 h-5 text-green-500" />
                 ) : (
                   <Loader2 className="w-5 h-5 text-primary animate-spin" />
                 )}
@@ -103,7 +190,9 @@ const UploadPage = () => {
                         className="flex items-center gap-2.5 text-sm"
                       >
                         {i < stepIndex ? (
-                          <CheckCircle2 className="w-4 h-4 text-success flex-shrink-0" />
+                          <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
+                        ) : error ? (
+                          <AlertCircle className="w-4 h-4 text-destructive flex-shrink-0" />
                         ) : (
                           <Loader2 className="w-4 h-4 text-primary animate-spin flex-shrink-0" />
                         )}
@@ -116,15 +205,31 @@ const UploadPage = () => {
                 </AnimatePresence>
               </div>
 
+              {/* Error */}
+              {error && (
+                <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3 text-sm text-destructive">
+                  {error}
+                  <Button variant="outline" size="sm" className="mt-2 w-full" onClick={() => {
+                    setFile(null);
+                    setError(null);
+                    setParsing(false);
+                  }}>
+                    重新上传
+                  </Button>
+                </div>
+              )}
+
               {/* Progress bar */}
-              <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
-                <motion.div
-                  className="h-full bg-primary rounded-full"
-                  initial={{ width: '0%' }}
-                  animate={{ width: `${Math.min((stepIndex / PARSE_STEPS.length) * 100, 100)}%` }}
-                  transition={{ duration: 0.4 }}
-                />
-              </div>
+              {!error && (
+                <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
+                  <motion.div
+                    className="h-full bg-primary rounded-full"
+                    initial={{ width: '0%' }}
+                    animate={{ width: `${Math.min((stepIndex / PARSE_STEPS.length) * 100, 100)}%` }}
+                    transition={{ duration: 0.4 }}
+                  />
+                </div>
+              )}
             </motion.div>
           )}
         </div>

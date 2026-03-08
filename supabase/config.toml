@@ -2,3 +2,9 @@ project_id = "egtnqsqhgnkplducislb"
 
 [functions.slide-ai]
 verify_jwt = false
+
+[functions.paper-parse]
+verify_jwt = false
+
+[functions.workspace-generate]
+verify_jwt = false

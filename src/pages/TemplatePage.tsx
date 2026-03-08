@@ -184,7 +184,19 @@ const TemplatePage = () => {
       </main>
 
       <div className="border-t border-border px-6 py-4 flex justify-end">
-        <Button size="lg" onClick={() => navigate('/workspace')}>
+        <Button size="lg" onClick={() => {
+          // Save template & density selection to localStorage
+          try {
+            const saved = localStorage.getItem('current_project');
+            if (saved) {
+              const data = JSON.parse(saved);
+              data.template = selected;
+              data.density = density;
+              localStorage.setItem('current_project', JSON.stringify(data));
+            }
+          } catch {}
+          navigate('/workspace');
+        }}>
           生成导读工作台
           <ChevronRight className="w-4 h-4 ml-1" />
         </Button>

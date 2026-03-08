@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -9,7 +9,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { MOCK_PAPER, MOCK_OUTLINE } from '@/data/mockData';
-import type { OutlineNode } from '@/types';
+import type { OutlineNode, PaperMeta } from '@/types';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
@@ -17,8 +17,21 @@ import {
 const OutlinePage = () => {
   const navigate = useNavigate();
   const [outline, setOutline] = useState<OutlineNode>(MOCK_OUTLINE);
+  const [paper, setPaper] = useState<PaperMeta>(MOCK_PAPER);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [view, setView] = useState<'outline' | 'mindmap'>('outline');
+
+  // Load from localStorage if available (from upload page AI parsing)
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('current_project');
+      if (saved) {
+        const data = JSON.parse(saved);
+        if (data.outline) setOutline(data.outline);
+        if (data.paper) setPaper(data.paper);
+      }
+    } catch {}
+  }, []);
 
   const findNode = useCallback((root: OutlineNode, id: string): OutlineNode | null => {
     if (root.id === id) return root;
@@ -116,7 +129,17 @@ const OutlinePage = () => {
     dragNodeId.current = null;
   };
 
-  const paper = MOCK_PAPER;
+  // Save outline changes back to localStorage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('current_project');
+      if (saved) {
+        const data = JSON.parse(saved);
+        data.outline = outline;
+        localStorage.setItem('current_project', JSON.stringify(data));
+      }
+    } catch {}
+  }, [outline]);
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
