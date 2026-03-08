@@ -14,14 +14,6 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
-import { MOCK_PROJECT } from '@/data/mockData';
-import type { Slide, SlideNotes } from '@/types';
-import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
-} from '@/components/ui/dropdown-menu';
 
 const TONE_OPTIONS: { value: SlideNotes['tone']; label: string }[] = [
   { value: 'concise', label: '简洁' },
