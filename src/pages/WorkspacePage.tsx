@@ -189,9 +189,9 @@ const WorkspacePage = () => {
                   variant="ghost"
                   className="flex-shrink-0 mt-0.5"
                   onClick={handlePromptSubmit}
-                  disabled={!promptText.trim()}
+                  disabled={!promptText.trim() || aiLoading}
                 >
-                  <Send className="w-4 h-4" />
+                  {aiLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                 </Button>
               </div>
             </div>
