@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, ChevronUp, ChevronDown, Plus, MoreHorizontal, Copy, RefreshCw,
-  PanelLeftClose, PanelLeftOpen, GripVertical, Send, Sparkles
+  PanelLeftClose, PanelLeftOpen, GripVertical, Send, Sparkles, Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -12,6 +12,8 @@ import type { Slide, SlideNotes } from '@/types';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 const TONE_OPTIONS: { value: SlideNotes['tone']; label: string }[] = [
   { value: 'concise', label: '简洁' },
@@ -27,15 +29,55 @@ const WorkspacePage = () => {
   const [articleOpen, setArticleOpen] = useState(true);
   const [notesOpen, setNotesOpen] = useState(true);
   const [promptText, setPromptText] = useState('');
-
+  const [aiLoading, setAiLoading] = useState(false);
   const article = MOCK_PROJECT.article;
   const currentSlide = slides[currentSlideIndex];
 
+  const callSlideAI = async (instruction: string) => {
+    if (!currentSlide || aiLoading) return;
+    setAiLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('slide-ai', {
+        body: {
+          messages: [{ role: 'user', content: instruction }],
+          slideContext: {
+            title: currentSlide.title,
+            contentBlocks: currentSlide.contentBlocks,
+            notes: currentSlide.notes,
+            layout: currentSlide.layout,
+          },
+        },
+      });
+      if (error) throw error;
+      if (data?.error) {
+        toast.error(data.error);
+        return;
+      }
+      // Apply AI result to slide
+      const updated = slides.map((s, i) => {
+        if (i !== currentSlideIndex) return s;
+        return {
+          ...s,
+          title: data.title || s.title,
+          contentBlocks: data.contentBlocks || s.contentBlocks,
+          notes: data.notes ? { ...s.notes, ...data.notes } : s.notes,
+        };
+      });
+      setSlides(updated);
+      toast.success('AI 已更新页面内容');
+    } catch (e: any) {
+      console.error('AI error:', e);
+      toast.error('AI 请求失败，请稍后再试');
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
   const handlePromptSubmit = () => {
     if (!promptText.trim()) return;
-    // TODO: send to AI
-    console.log('Prompt for slide', currentSlide?.id, ':', promptText);
+    const text = promptText;
     setPromptText('');
+    callSlideAI(text);
   };
 
   return (
@@ -122,7 +164,7 @@ const WorkspacePage = () => {
                 animate={{ opacity: 1 }}
                 className="w-full max-w-3xl"
               >
-                <SlideEditor slide={currentSlide} />
+                <SlideEditor slide={currentSlide} onAiAction={callSlideAI} aiLoading={aiLoading} />
               </motion.div>
             )}
 
@@ -147,9 +189,9 @@ const WorkspacePage = () => {
                   variant="ghost"
                   className="flex-shrink-0 mt-0.5"
                   onClick={handlePromptSubmit}
-                  disabled={!promptText.trim()}
+                  disabled={!promptText.trim() || aiLoading}
                 >
-                  <Send className="w-4 h-4" />
+                  {aiLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                 </Button>
               </div>
             </div>
@@ -253,11 +295,19 @@ const WorkspacePage = () => {
 };
 
 // Slide editor
-function SlideEditor({ slide }: { slide: Slide }) {
+function SlideEditor({ slide, onAiAction, aiLoading }: { slide: Slide; onAiAction: (instruction: string) => void; aiLoading: boolean }) {
   const isCover = slide.layout === 'cover';
 
   return (
     <div className="relative group">
+      {aiLoading && (
+        <div className="absolute inset-0 bg-card/60 backdrop-blur-sm z-20 flex items-center justify-center rounded-xl">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            AI 正在处理…
+          </div>
+        </div>
+      )}
       <div className="absolute top-2 right-2 z-10">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -266,10 +316,10 @@ function SlideEditor({ slide }: { slide: Slide }) {
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-36">
-            <DropdownMenuItem>精简内容</DropdownMenuItem>
-            <DropdownMenuItem>更适合讲解</DropdownMenuItem>
-            <DropdownMenuItem>换排版</DropdownMenuItem>
-            <DropdownMenuItem>生成注释</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onAiAction('请精简这一页的内容，只保留最核心的要点')}>精简内容</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onAiAction('请让这一页的内容更适合口头讲解，语言更自然')}>更适合讲解</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onAiAction('请换一种排版方式，比如改用分栏布局或关键发现块')}>换排版</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onAiAction('请为这一页生成演讲注释，包括这页讲什么、补充说明和过渡句')}>生成注释</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
