@@ -13,7 +13,7 @@ const PdfViewer = ({ storageKey = 'current_pdf', className = '' }: PdfViewerProp
   const [pdf, setPdf] = useState<any>(null);
   const [numPages, setNumPages] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
-  const [scale, setScale] = useState(1.2);
+  const [scale, setScale] = useState(1.5);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -51,10 +51,9 @@ const PdfViewer = ({ storageKey = 'current_pdf', className = '' }: PdfViewerProp
     return () => { cancelled = true; };
   }, [storageKey]);
 
-  // Render current page
+  // Render current page with HiDPI support
   const renderPage = useCallback(async () => {
     if (!pdf || !canvasRef.current) return;
-    // Cancel any in-progress render
     if (renderTaskRef.current) {
       try { renderTaskRef.current.cancel(); } catch {}
     }
@@ -62,10 +61,19 @@ const PdfViewer = ({ storageKey = 'current_pdf', className = '' }: PdfViewerProp
       const page = await pdf.getPage(currentPage);
       const viewport = page.getViewport({ scale });
       const canvas = canvasRef.current;
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
+      const dpr = window.devicePixelRatio || 1;
+      
+      // Set actual canvas size (high-res)
+      canvas.width = Math.floor(viewport.width * dpr);
+      canvas.height = Math.floor(viewport.height * dpr);
+      // Set display size (CSS)
+      canvas.style.width = `${Math.floor(viewport.width)}px`;
+      canvas.style.height = `${Math.floor(viewport.height)}px`;
+      
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
+      ctx.scale(dpr, dpr);
+      
       const task = page.render({ canvasContext: ctx, viewport });
       renderTaskRef.current = task;
       await task.promise;
