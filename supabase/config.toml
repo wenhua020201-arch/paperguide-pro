@@ -8,6 +8,3 @@ verify_jwt = false
 
 [functions.workspace-generate]
 verify_jwt = false
-
-[functions.template-preview]
-verify_jwt = false

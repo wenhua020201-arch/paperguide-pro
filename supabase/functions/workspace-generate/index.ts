@@ -14,44 +14,98 @@ serve(async (req) => {
     if (!DASHSCOPE_API_KEY) throw new Error("DASHSCOPE_API_KEY is not configured");
 
     const templateDescriptions: Record<string, string> = {
-      seminar: '组会汇报版：强调研究问题、方法、实验和批判性评价',
-      course: '课程 Presentation 版：结构清晰，讲解友好，背景解释更多',
-      proposal: '开题/综述版：强调研究脉络、相关工作、启发',
-      crossfield: '跨方向交流版：降低术语密度，更适合非本领域听众',
+      seminar: '组会汇报版：以批判性视角分析论文。强调研究问题的动机、方法设计的合理性、实验设计的完备性、结果的可靠性。需要包含对方法的质疑和讨论。',
+      course: '课程 Presentation 版：面向初学者友好。需要从基础概念讲起，用类比和直觉解释复杂概念，减少数学公式的直接展示，增加"为什么"的解释。每个概念都要有铺垫。',
+      proposal: '开题/综述版：强调研究脉络和方法演进。需要梳理时间线，对比不同方法的优缺点，分析研究趋势，指出开放问题和可能的研究方向。',
+      crossfield: '跨方向交流版：面向非本领域听众。完全避免专业术语或立即解释，使用生活化类比，关注"这个研究为什么重要"和"对其他领域有什么启示"。',
     };
 
     const densityDescriptions: Record<string, string> = {
-      concise: '简洁：每页仅保留2-3个核心结论，语言极度精炼',
-      standard: '标准：每页3-5个要点，附简要说明',
-      detailed: '详细：每页5-8个要点，包含完整论证与细节',
+      concise: '简洁模式：每页2-3个核心要点，语言极度精炼，适合快速过一遍',
+      standard: '标准模式：每页3-5个要点，附简要说明和数据支撑',
+      detailed: '详细模式：每页5-8个要点，包含完整论证、公式、数据对比和细节说明',
     };
 
-    const systemPrompt = `你是一个学术论文导读工作台生成助手。根据论文大纲和元数据，生成完整的导读工作台内容。
+    // Serialize outline tree to readable text for prompt
+    const serializeOutline = (node: any, depth = 0): string => {
+      const indent = '  '.repeat(depth);
+      let result = `${indent}${depth > 0 ? '- ' : ''}${node.title}`;
+      if (node.description) result += `：${node.description}`;
+      result += '\n';
+      if (node.children) {
+        for (const child of node.children) {
+          result += serializeOutline(child, depth + 1);
+        }
+      }
+      return result;
+    };
 
-模板风格：${templateDescriptions[template] || '组会汇报版'}
-内容密度：${densityDescriptions[density] || '标准'}
+    const outlineText = serializeOutline(outline);
 
-你需要生成：
-1. slides: PPT 页面数组（6-10页），每页包含：
-   - title: 页面标题
-   - contentBlocks: 内容块数组，每个有 type (point/subpoint/finding/summary/text/heading) 和 content
-   - layout: 布局类型 (cover/title-points/title-subpoints/title-two-column/title-findings/title-summary)
-   - notes: 演讲注释 (mainTalk, extraExplanation, transitionSentence)
+    const systemPrompt = `你是一个学术论文导读PPT生成专家。你需要根据用户提供的论文大纲，生成高质量的PPT内容。
 
-2. article: 导读文章，按章节组织：
-   - sections 数组，每个有 title 和 paragraphs（段落数组）
-   - 每个段落有 content（详细的导读文本，不是摘抄原文，而是用通俗的语言讲解）
-   - 导读文章应该完整、连贯，适合作为汇报的讲稿参考
-   - 每个段落的 linkedSlideId 对应关联的幻灯片 ID
+## 模板风格
+${templateDescriptions[template] || templateDescriptions.seminar}
 
-第一页应该是封面页（cover 布局），包含论文标题、作者和导读人信息。
-最后一页应该是总结/展望页。
-slides 的 id 格式为 s-1, s-2, ... 
-contentBlocks 的 id 格式为 b-X-Y（X是slide序号，Y是block序号）
-article sections 的 id 格式为 sec-1, sec-2, ...
-paragraphs 的 id 格式为 p-X-Y
+## 内容密度
+${densityDescriptions[density] || densityDescriptions.standard}
+
+## 核心要求
+1. **以大纲为骨架生成PPT**：大纲的每个一级节点对应PPT的一个章节，但一个章节可以有多页PPT。根据信息量决定页数，信息量大的章节可以拆成2-3页。
+2. **内容要充实**：终极要求是把事情讲清楚，把数据摆明白。不能只写几个词的要点，每个要点需要有完整的说明。
+3. **善用布局格式**：
+   - cover：封面页
+   - title-points：标题+要点列表（最常用）
+   - title-subpoints：标题+要点+子要点（适合有层级的内容）
+   - title-two-column：双栏对比（适合优缺点对比、方法对比）
+   - title-findings：标题+核心发现（适合突出重要结论）
+   - title-summary：总结页
+   - title-quad：四分框布局（适合4个并列概念/组件的介绍）
+   - title-timeline：时间线布局（适合研究脉络、方法演进）
+   - title-method-flow：方法流程图布局（适合方法步骤）
+   - title-results：结果展示页（适合数据对比）
+4. **配合布局选择内容块类型**：
+   - point：普通要点
+   - subpoint：子要点（缩进显示）
+   - finding：核心发现（高亮显示）
+   - summary：总结性文字
+   - text：普通文本
+   - heading：小标题
+   - quad-item：四分框中的一项（包含标题和说明）
+   - timeline-item：时间线中的一个节点（包含时间和说明）
+
+## 生成规则
+- 第一页必须是封面页（cover），包含论文标题和作者信息
+- 最后一页是总结/展望页
+- 总页数建议 8-15 页，根据内容复杂度调整
+- 每个大纲章节至少1页，内容多的可以2-3页
+- 演讲注释要实用：mainTalk 是这页要讲什么，extraExplanation 是补充说明，transitionSentence 是过渡到下一页的衔接语
+
+## 同时生成导读文章
+- 按章节组织，与PPT章节对应
+- 每个段落要用通俗易懂的语言讲解论文内容，不是摘抄原文
+- 导读文章应该完整连贯，可以作为汇报讲稿的参考
+- paragraphs 的 linkedSlideId 对应关联的幻灯片 ID
+
+## ID 格式
+- slides: s-1, s-2, ...
+- contentBlocks: b-X-Y（X是slide序号，Y是block序号）
+- article sections: sec-1, sec-2, ...
+- paragraphs: p-X-Y
 
 请用中文回复，保持学术严谨性。`;
+
+    const userPrompt = `论文信息：
+标题：${paper.title}
+作者：${paper.authors?.join(', ') || '未知'}
+年份：${paper.year || '未知'}
+关键词：${paper.keywords?.join(', ') || '未知'}
+摘要：${paper.abstract || '无'}
+
+用户编辑后的大纲结构：
+${outlineText}
+
+请严格按照上述大纲结构生成PPT和导读文章。大纲是用户精心编辑的，每个节点的标题和描述都要在PPT中体现。`;
 
     const response = await fetch("https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions", {
       method: "POST",
@@ -63,7 +117,7 @@ paragraphs 的 id 格式为 p-X-Y
         model: "qwen3-max",
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: `论文信息：${JSON.stringify(paper)}\n\n大纲结构：${JSON.stringify(outline)}` },
+          { role: "user", content: userPrompt },
         ],
         tools: [
           {
@@ -81,14 +135,14 @@ paragraphs 的 id 格式为 p-X-Y
                       properties: {
                         id: { type: "string" },
                         title: { type: "string" },
-                        layout: { type: "string", enum: ["cover", "title-points", "title-subpoints", "title-two-column", "title-findings", "title-summary"] },
+                        layout: { type: "string", enum: ["cover", "title-points", "title-subpoints", "title-two-column", "title-findings", "title-summary", "title-quad", "title-timeline", "title-method-flow", "title-results"] },
                         contentBlocks: {
                           type: "array",
                           items: {
                             type: "object",
                             properties: {
                               id: { type: "string" },
-                              type: { type: "string", enum: ["point", "subpoint", "finding", "summary", "text", "heading"] },
+                              type: { type: "string", enum: ["point", "subpoint", "finding", "summary", "text", "heading", "quad-item", "timeline-item"] },
                               content: { type: "string" },
                             },
                             required: ["id", "type", "content"],

@@ -1,11 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowLeft, ChevronRight, Check, Users, BookOpen, Search, Globe, Loader2 } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Check, Users, BookOpen, Search, Globe } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { TEMPLATES } from '@/data/mockData';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
 import type { TemplateName, ContentDensity } from '@/types';
 
 const TEMPLATE_ICONS: Record<TemplateName, typeof Users> = {
@@ -21,27 +19,27 @@ const DENSITIES: { value: ContentDensity; label: string; desc: string }[] = [
   { value: 'detailed', label: '详细', desc: '完整论证与细节' },
 ];
 
-// Fallback static previews
-const FALLBACK_PREVIEWS: Record<TemplateName, { title: string; points: string[]; accent: string }[]> = {
+// Built-in Transformer-based previews showing clear style differences
+const TEMPLATE_PREVIEWS: Record<TemplateName, { title: string; points: string[]; accent: string }[]> = {
   seminar: [
-    { title: '研究问题与假设', points: ['核心假设与动机', '现有方法的局限'], accent: 'hsl(215, 65%, 42%)' },
-    { title: '方法设计与创新', points: ['模型架构概览', '关键创新点', '与 baseline 对比'], accent: 'hsl(195, 70%, 45%)' },
-    { title: '批判性讨论', points: ['实验是否充分？', '可复现性评价'], accent: 'hsl(155, 60%, 42%)' },
+    { title: '研究问题与动机', points: ['RNN 顺序计算瓶颈 → 能否完全去掉循环？', '核心假设：纯注意力足以建模序列'], accent: 'hsl(215, 65%, 42%)' },
+    { title: '方法批判性分析', points: ['Scaled Dot-Product 缩放因子的必要性', '多头注意力 vs 单头：消融实验验证', '位置编码选择：固定 vs 可学习'], accent: 'hsl(195, 70%, 45%)' },
+    { title: '实验评价与复现性', points: ['BLEU 28.4 是否充分说明优势？', '训练成本对比是否公平？', '消融实验的完备性讨论'], accent: 'hsl(155, 60%, 42%)' },
   ],
   course: [
-    { title: '背景知识回顾', points: ['领域概述', '核心概念解释', '为什么重要？'], accent: 'hsl(260, 55%, 50%)' },
-    { title: '论文主要贡献', points: ['主要创新', '解决了什么问题'], accent: 'hsl(215, 65%, 42%)' },
-    { title: '总结与延伸', points: ['关键 takeaway', '延伸阅读建议'], accent: 'hsl(45, 80%, 50%)' },
+    { title: '什么是序列建模？', points: ['从翻译任务说起：输入一句话→输出另一种语言', 'RNN 像"流水线"一步步处理，速度慢', '为什么需要新方法？'], accent: 'hsl(260, 55%, 50%)' },
+    { title: '注意力机制直觉', points: ['类比：阅读时眼睛会"关注"重要的词', 'Query-Key-Value 三元组的含义', '多头 = 从多个角度同时关注'], accent: 'hsl(215, 65%, 42%)' },
+    { title: '总结与课后思考', points: ['Transformer 的三个核心创新', '思考题：为什么需要位置编码？', '延伸阅读：BERT 和 GPT'], accent: 'hsl(45, 80%, 50%)' },
   ],
   proposal: [
-    { title: '研究脉络梳理', points: ['相关工作梳理', '研究演进时间线'], accent: 'hsl(340, 60%, 50%)' },
-    { title: '方法对比分析', points: ['方法 A vs B vs C', '优缺点分析'], accent: 'hsl(215, 65%, 42%)' },
-    { title: '研究启发', points: ['开放问题', '可能的研究方向'], accent: 'hsl(155, 60%, 42%)' },
+    { title: '研究脉络：从 RNN 到 Transformer', points: ['2014: Seq2Seq + Attention', '2015: 注意力对齐可视化', '2017: 完全去除循环 → Transformer'], accent: 'hsl(340, 60%, 50%)' },
+    { title: '相关工作对比', points: ['RNN+Attention vs CNN (ByteNet) vs Transformer', '计算复杂度 O(n²) vs O(n·k) vs O(n²)', '并行度：不可并行 vs 部分 vs 完全'], accent: 'hsl(215, 65%, 42%)' },
+    { title: '研究启发与开放问题', points: ['如何降低 O(n²) → Linear Attention', '位置编码的更好方案：RoPE, ALiBi', '跨模态统一架构的可能性'], accent: 'hsl(155, 60%, 42%)' },
   ],
   crossfield: [
-    { title: '一句话解释', points: ['直觉类比', '无术语版本'], accent: 'hsl(25, 70%, 50%)' },
-    { title: '为什么值得关注', points: ['跨领域影响', '实际应用场景'], accent: 'hsl(195, 70%, 45%)' },
-    { title: '核心发现', points: ['简化版结果', '一张图看懂'], accent: 'hsl(260, 55%, 50%)' },
+    { title: '一句话理解 Transformer', points: ['想象一个"全知全能"的翻译官', '不是逐字翻译，而是同时看完整句话再翻', '类比：不用排队，所有人同时工作'], accent: 'hsl(25, 70%, 50%)' },
+    { title: '为什么值得关注？', points: ['不只是翻译：ChatGPT、图像生成都用它', '影响了生物(蛋白质预测)、医学、金融', '被称为"AI 的基础设施"'], accent: 'hsl(195, 70%, 45%)' },
+    { title: '核心发现（无公式版）', points: ['翻译质量：超过当时所有方法', '训练速度：快了 4 倍以上', '一个架构统治所有任务'], accent: 'hsl(260, 55%, 50%)' },
   ],
 };
 
@@ -91,43 +89,6 @@ const TemplatePage = () => {
   const navigate = useNavigate();
   const [selected, setSelected] = useState<TemplateName>('seminar');
   const [density, setDensity] = useState<ContentDensity>('standard');
-  const [aiPreviews, setAiPreviews] = useState<Record<TemplateName, { title: string; points: string[]; accent: string }[]> | null>(null);
-  const [loadingPreviews, setLoadingPreviews] = useState(false);
-
-  // Load AI-generated previews on mount
-  useEffect(() => {
-    const generatePreviews = async () => {
-      try {
-        const saved = localStorage.getItem('current_project');
-        if (!saved) return;
-        const data = JSON.parse(saved);
-        if (!data.paper || !data.outline) return;
-
-        setLoadingPreviews(true);
-        const { data: result, error } = await supabase.functions.invoke('template-preview', {
-          body: { paper: data.paper, outline: data.outline },
-        });
-
-        if (error) throw error;
-        if (result?.error) throw new Error(result.error);
-
-        // Validate we got all 4 templates
-        if (result.seminar && result.course && result.proposal && result.crossfield) {
-          setAiPreviews(result);
-        }
-      } catch (e: any) {
-        console.error('Template preview error:', e);
-        // Silently fall back to static previews
-      } finally {
-        setLoadingPreviews(false);
-      }
-    };
-    generatePreviews();
-  }, []);
-
-  const getPreviews = (templateId: TemplateName) => {
-    return aiPreviews?.[templateId] || FALLBACK_PREVIEWS[templateId];
-  };
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -137,12 +98,6 @@ const TemplatePage = () => {
             <ArrowLeft className="w-4 h-4" />
           </Button>
           <h1 className="text-lg font-display font-semibold text-foreground">选择汇报模板</h1>
-          {loadingPreviews && (
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <Loader2 className="w-3 h-3 animate-spin" />
-              AI 生成预览中…
-            </div>
-          )}
         </div>
       </header>
 
@@ -152,7 +107,7 @@ const TemplatePage = () => {
             {TEMPLATES.map((tpl) => {
               const Icon = TEMPLATE_ICONS[tpl.id];
               const isSelected = selected === tpl.id;
-              const previews = getPreviews(tpl.id);
+              const previews = TEMPLATE_PREVIEWS[tpl.id];
               return (
                 <motion.div
                   key={tpl.id}
@@ -223,7 +178,6 @@ const TemplatePage = () => {
               const data = JSON.parse(saved);
               data.template = selected;
               data.density = density;
-              // Clear previous slides/article so workspace regenerates
               delete data.slides;
               delete data.article;
               localStorage.setItem('current_project', JSON.stringify(data));
