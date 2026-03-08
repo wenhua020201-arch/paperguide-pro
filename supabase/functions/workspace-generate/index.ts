@@ -50,16 +50,23 @@ ${templateDescriptions[template] || templateDescriptions.seminar}
 ${densityDescriptions[density] || densityDescriptions.standard}
 
 ## 核心要求
-1. **以大纲为骨架生成PPT**：大纲的每个一级节点对应PPT的一个章节，但一个章节可以有多页PPT。根据信息量决定页数，信息量大的章节可以拆成2-4页。
+1. **大纲的每个最末级节点必须至少对应一页PPT**：
+   - 大纲是用户精心编辑的，已经按照论文的小节结构拆分（如 3.1.1、3.1.2 各自独立）
+   - 每个末级节点都必须有自己独立的 PPT 页面，**绝对不要合并**
+   - 信息量大的节点可以拆成 2-3 页 PPT
+   - 这是最重要的规则！
+
 2. **内容必须充实详尽**：
-   - 每个要点不能只写几个词，必须是完整的说明句子
+   - 每个要点不能只写几个词，必须是完整的说明句子（至少15-30个字）
    - 包含具体数据、实验结果、数值对比
    - 解释"为什么"和"怎么做"，而不只是"是什么"
    - 方法部分要包含具体步骤、参数设置、创新点解释
    - 实验部分要包含数据集说明、评估指标、具体数值结果
+   - 每页至少 5 个内容块
+
 3. **必须多样化使用布局**：
    - cover：封面页（仅第一页）
-   - title-points：标题+要点列表（不要每页都用这个！）
+   - title-points：标题+要点列表（不要每页都用这个！最多占30%）
    - title-subpoints：标题+要点+子要点（适合有层级的内容）
    - title-two-column：双栏对比（适合优缺点对比、方法对比、before/after）
    - title-findings：核心发现（适合突出重要结论，用高亮卡片）
@@ -71,7 +78,7 @@ ${densityDescriptions[density] || densityDescriptions.standard}
 
    **布局分布要求**：
    - title-points 最多占 30% 的页面
-   - 至少使用 4 种不同的布局类型
+   - 至少使用 5 种不同的布局类型
    - 方法部分优先用 title-method-flow 或 title-quad
    - 实验对比优先用 title-two-column 或 title-results
    - 研究背景/相关工作优先用 title-timeline
@@ -89,19 +96,24 @@ ${densityDescriptions[density] || densityDescriptions.standard}
 
 5. **每页内容块数量要求**：
    - cover：2-3 个（标题、作者、会议/期刊）
-   - title-points：5-7 个（充实的要点列表）
-   - title-two-column：6-8 个（左右各3-4个对比项）
-   - title-quad：4 个（每个象限一个详细说明）
+   - title-points：5-8 个（充实的要点列表）
+   - title-two-column：6-10 个（左右各3-5个对比项）
+   - title-quad：4 个（每个象限一个详细说明，每个至少30字）
    - title-timeline：4-6 个（每个时间节点有详细说明）
    - title-method-flow：4-6 个（每个步骤有详细说明）
    - title-findings：3-5 个（每个发现都要详细论证）
    - title-results：4-6 个（结合 heading + point + finding）
 
+## 图表占位说明
+- 当内容涉及实验流程、模型架构、数据流等适合用图表展示的内容时，在 contentBlocks 中添加一个类型为 "text" 的块，内容格式为：
+  [图表: 描述内容]
+  例如：[图表: Transformer 编码器-解码器架构示意图]
+  这将在后续步骤中被替换为 AI 生成的图像
+
 ## 生成规则
 - 第一页必须是封面页（cover），包含论文标题和作者信息
 - 最后一页是总结/展望页
-- 总页数建议 12-20 页，根据内容复杂度调整
-- 每个大纲章节至少1页，内容多的可以2-4页
+- 总页数建议 15-30 页，根据大纲节点数量调整（每个末级节点至少1页）
 - 演讲注释要实用：mainTalk 是这页的核心讲解要点，extraExplanation 是补充的背景知识或细节，transitionSentence 是过渡到下一页的衔接语
 
 ## 同时生成导读文章
@@ -127,7 +139,8 @@ ${densityDescriptions[density] || densityDescriptions.standard}
 用户编辑后的大纲结构：
 ${outlineText}
 
-请严格按照上述大纲结构生成PPT和导读文章。大纲是用户精心编辑的，每个节点的标题和描述都要在PPT中体现。
+请严格按照上述大纲结构生成PPT和导读文章。
+**关键**：大纲的每个末级节点（没有子节点的节点）都必须至少对应一页独立的PPT，不要合并！
 注意：布局必须多样化，不要全部使用 title-points！每个要点内容要详尽充实！`;
 
     const response = await fetch("https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions", {
