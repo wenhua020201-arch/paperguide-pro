@@ -17,14 +17,36 @@ serve(async (req) => {
 
 你的任务是根据用户的指令，修改当前 PPT 页面的内容。
 
-规则：
-- 返回修改后的 JSON 格式内容，包含 title 和 contentBlocks 数组
-- contentBlocks 中每个元素有 id, type (point/subpoint/finding/summary/text/heading), content
-- 保持学术严谨性
-- 中文回复
-- 如果用户要求精简，减少要点数量但保留核心信息
-- 如果用户要求更适合讲解，让语言更口语化
-- 如果用户要求换排版，改变 contentBlocks 的 type 分布
+## 可用的布局类型
+- title-points：标题+要点列表（最常用）
+- title-subpoints：标题+要点+子要点（有层级的内容）
+- title-two-column：双栏对比（优缺点对比、方法对比等）
+- title-findings：核心发现（高亮重要结论）
+- title-summary：总结页
+- title-quad：四分框布局（4个并列概念/组件）
+- title-timeline：时间线布局（研究脉络、方法演进）
+- title-method-flow：方法流程图布局（方法步骤）
+- title-results：结果展示页（数据对比）
+- cover：封面页
+
+## 可用的内容块类型
+- point：普通要点（带圆点标记）
+- subpoint：子要点（缩进显示）
+- finding：核心发现（高亮卡片）
+- summary：总结性文字（斜体+分隔线）
+- text：普通文本
+- heading：小标题（粗体）
+- quad-item：四分框中的一项
+- timeline-item：时间线中的节点
+
+## 规则
+- 返回修改后的 JSON，包含 title, layout, contentBlocks
+- contentBlocks 中每个元素有 id, type, content
+- **内容要充实详细**：每个要点不能只是几个词，要有完整的说明句子，包含数据、对比、解释
+- **善用多种布局**：如果用户要求换排版，必须同时改变 layout 和 contentBlocks 的 type
+- 保持学术严谨性，中文回复
+- 如果用户要求改成某种布局，你必须：1) 改变 layout 字段  2) 改变 contentBlocks 的 type 来匹配新布局
+- 每页至少 4-6 个内容块，确保信息量充足
 - 同时返回更新后的 notes 对象（mainTalk, extraExplanation, transitionSentence）
 
 当前页面上下文：
@@ -47,18 +69,23 @@ ${slideContext ? JSON.stringify(slideContext) : '无'}`;
             type: "function",
             function: {
               name: "update_slide",
-              description: "Update the slide content based on user instructions",
+              description: "Update the slide content, layout and notes based on user instructions",
               parameters: {
                 type: "object",
                 properties: {
                   title: { type: "string", description: "Updated slide title" },
+                  layout: { 
+                    type: "string", 
+                    enum: ["cover", "title-points", "title-subpoints", "title-two-column", "title-findings", "title-summary", "title-quad", "title-timeline", "title-method-flow", "title-results"],
+                    description: "Slide layout type" 
+                  },
                   contentBlocks: {
                     type: "array",
                     items: {
                       type: "object",
                       properties: {
                         id: { type: "string" },
-                        type: { type: "string", enum: ["point", "subpoint", "finding", "summary", "text", "heading"] },
+                        type: { type: "string", enum: ["point", "subpoint", "finding", "summary", "text", "heading", "quad-item", "timeline-item"] },
                         content: { type: "string" },
                       },
                       required: ["id", "type", "content"],
@@ -73,7 +100,7 @@ ${slideContext ? JSON.stringify(slideContext) : '无'}`;
                     },
                   },
                 },
-                required: ["title", "contentBlocks"],
+                required: ["title", "layout", "contentBlocks"],
               },
             },
           },
@@ -107,7 +134,6 @@ ${slideContext ? JSON.stringify(slideContext) : '无'}`;
 
     const data = await response.json();
     
-    // Extract tool call result
     const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
     if (toolCall?.function?.arguments) {
       const args = typeof toolCall.function.arguments === 'string' 
@@ -118,7 +144,6 @@ ${slideContext ? JSON.stringify(slideContext) : '无'}`;
       });
     }
 
-    // Fallback: try to parse content directly if no tool call
     const content = data.choices?.[0]?.message?.content;
     if (content) {
       try {
@@ -126,9 +151,7 @@ ${slideContext ? JSON.stringify(slideContext) : '无'}`;
         return new Response(JSON.stringify(parsed), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
-      } catch {
-        // content is not JSON
-      }
+      } catch {}
     }
 
     return new Response(JSON.stringify({ error: "AI 未返回有效结果" }), {
