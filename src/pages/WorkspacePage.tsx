@@ -37,7 +37,7 @@ const WorkspacePage = () => {
   const [articleOpen, setArticleOpen] = useState(true);
   const [notesOpen, setNotesOpen] = useState(true);
   const [promptText, setPromptText] = useState('');
-
+  const [aiLoading, setAiLoading] = useState(false);
   const article = MOCK_PROJECT.article;
   const currentSlide = slides[currentSlideIndex];
 
