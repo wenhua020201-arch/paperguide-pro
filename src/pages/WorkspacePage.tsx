@@ -229,15 +229,7 @@ const WorkspacePage = () => {
                   <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">论文原文</span>
                 </div>
                 <div className="flex-1 overflow-hidden">
-                  {pdfUrl ? (
-                    <object data={pdfUrl} type="application/pdf" className="w-full h-full">
-                      <iframe src={pdfUrl} className="w-full h-full border-0" title="论文 PDF" />
-                    </object>
-                  ) : (
-                    <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
-                      <p>未找到 PDF 文件</p>
-                    </div>
-                  )}
+                  <PdfViewer />
                 </div>
               </div>
             </motion.aside>
