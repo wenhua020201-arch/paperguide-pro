@@ -1,15 +1,16 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, ChevronRight, ChevronDown, GripVertical, MoreHorizontal,
-  Plus, Trash2, ArrowUp, ArrowDown, Indent, Outdent, Network, List,
-  FileText as FileTextIcon, Check, X
+  Plus, Trash2, ArrowUp, ArrowDown, ChevronsUp, ChevronsDown, Indent, Outdent,
+  FileText as FileTextIcon, Check, X, PanelLeftClose, PanelLeftOpen
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { MOCK_PAPER, MOCK_OUTLINE } from '@/data/mockData';
-import type { OutlineNode, PaperMeta } from '@/types';
+import { Textarea } from '@/components/ui/textarea';
+import { MOCK_PAPER, MOCK_OUTLINE, MOCK_ARTICLE } from '@/data/mockData';
+import type { OutlineNode, PaperMeta, GuideArticle } from '@/types';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
@@ -18,10 +19,10 @@ const OutlinePage = () => {
   const navigate = useNavigate();
   const [outline, setOutline] = useState<OutlineNode>(MOCK_OUTLINE);
   const [paper, setPaper] = useState<PaperMeta>(MOCK_PAPER);
+  const [article, setArticle] = useState<GuideArticle>(MOCK_ARTICLE);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [view, setView] = useState<'outline' | 'mindmap'>('outline');
+  const [articleOpen, setArticleOpen] = useState(true);
 
-  // Load from localStorage if available (from upload page AI parsing)
   useEffect(() => {
     try {
       const saved = localStorage.getItem('current_project');
@@ -29,6 +30,7 @@ const OutlinePage = () => {
         const data = JSON.parse(saved);
         if (data.outline) setOutline(data.outline);
         if (data.paper) setPaper(data.paper);
+        if (data.article) setArticle(data.article);
       }
     } catch {}
   }, []);
@@ -100,7 +102,22 @@ const OutlinePage = () => {
     setOutline(reorder(outline));
   };
 
-  // Drag and drop state
+  const moveNodeToEdge = (nodeId: string, edge: 'top' | 'bottom') => {
+    const reorder = (node: OutlineNode): OutlineNode => {
+      const idx = node.children.findIndex(c => c.id === nodeId);
+      if (idx >= 0) {
+        const newChildren = [...node.children];
+        const [moved] = newChildren.splice(idx, 1);
+        if (edge === 'top') newChildren.unshift(moved);
+        else newChildren.push(moved);
+        return { ...node, children: newChildren };
+      }
+      return { ...node, children: node.children.map(reorder) };
+    };
+    setOutline(reorder(outline));
+  };
+
+  // Drag and drop
   const dragNodeId = useRef<string | null>(null);
   const dragParentId = useRef<string | null>(null);
 
@@ -111,9 +128,7 @@ const OutlinePage = () => {
 
   const handleDrop = (targetNodeId: string, targetParentId: string | null) => {
     if (!dragNodeId.current || dragNodeId.current === targetNodeId) return;
-    // Only allow reorder within same parent
     if (dragParentId.current !== targetParentId) return;
-
     const reorder = (node: OutlineNode): OutlineNode => {
       const dragIdx = node.children.findIndex(c => c.id === dragNodeId.current);
       const dropIdx = node.children.findIndex(c => c.id === targetNodeId);
@@ -129,7 +144,7 @@ const OutlinePage = () => {
     dragNodeId.current = null;
   };
 
-  // Save outline changes back to localStorage
+  // Persist
   useEffect(() => {
     try {
       const saved = localStorage.getItem('current_project');
@@ -150,81 +165,69 @@ const OutlinePage = () => {
           </Button>
           <h1 className="text-lg font-display font-semibold text-foreground">导读大纲</h1>
         </div>
-        <div className="flex items-center gap-1 bg-secondary rounded-lg p-0.5">
-          <button
-            onClick={() => setView('outline')}
-            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-              view === 'outline' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
-            }`}
-          >
-            <List className="w-4 h-4 inline mr-1" />大纲
-          </button>
-          <button
-            onClick={() => setView('mindmap')}
-            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-              view === 'mindmap' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
-            }`}
-          >
-            <Network className="w-4 h-4 inline mr-1" />思维导图
-          </button>
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={() => setArticleOpen(!articleOpen)}>
+            {articleOpen ? <PanelLeftClose className="w-4 h-4" /> : <PanelLeftOpen className="w-4 h-4" />}
+            <span className="ml-1 text-xs">文章</span>
+          </Button>
         </div>
       </header>
 
       <div className="flex-1 flex overflow-hidden">
-        {/* Left sidebar */}
-        <aside className="w-64 border-r border-border p-4 overflow-y-auto hidden lg:block">
-          <div className="space-y-4">
-            <div>
-              <p className="text-xs text-muted-foreground mb-1">论文标题</p>
-              <p className="text-sm font-medium text-foreground">{paper.title}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground mb-1">作者</p>
-              <p className="text-sm text-foreground">{paper.authors.slice(0, 3).join(', ')} 等</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground mb-1">年份</p>
-              <p className="text-sm text-foreground">{paper.year}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground mb-1">关键词</p>
-              <div className="flex flex-wrap gap-1">
-                {paper.keywords.map(k => (
-                  <span key={k} className="text-xs bg-secondary text-secondary-foreground px-2 py-0.5 rounded-full">{k}</span>
-                ))}
+        {/* Left - Article preview */}
+        <AnimatePresence initial={false}>
+          {articleOpen && (
+            <motion.aside
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 340, opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="border-r border-border overflow-hidden flex-shrink-0"
+            >
+              <div className="w-[340px] h-full overflow-y-auto p-4">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-4">导读文章预览</p>
+                {article.sections.length > 0 ? (
+                  article.sections.map((section) => (
+                    <div key={section.id} className="mb-6">
+                      <h3 className="text-sm font-display font-semibold text-foreground mb-2">{section.title}</h3>
+                      {section.paragraphs.map((p) => (
+                        <p key={p.id} className="text-xs leading-relaxed text-muted-foreground mb-3 px-2 py-1.5">
+                          {p.content}
+                        </p>
+                      ))}
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-sm text-muted-foreground text-center mt-12">
+                    <p>文章将在工作台生成后显示</p>
+                  </div>
+                )}
               </div>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground mb-1">研究主题</p>
-              <p className="text-sm text-foreground">{paper.topic}</p>
-            </div>
-          </div>
-        </aside>
-
-        {/* Main */}
-        <main className="flex-1 overflow-y-auto p-6">
-          {view === 'outline' ? (
-            <div className="max-w-3xl mx-auto">
-              <TreeNodeComponent
-                node={outline}
-                selectedId={selectedId}
-                onSelect={setSelectedId}
-                onToggle={toggleCollapse}
-                onDelete={deleteNode}
-                onAddChild={addChild}
-                onUpdate={updateNode}
-                onMove={moveNode}
-                onDragStart={handleDragStart}
-                onDrop={handleDrop}
-                isRoot
-              />
-            </div>
-          ) : (
-            <MindmapPreview outline={outline} />
+            </motion.aside>
           )}
+        </AnimatePresence>
+
+        {/* Main outline editor */}
+        <main className="flex-1 overflow-y-auto p-6">
+          <div className="max-w-3xl mx-auto">
+            <TreeNodeComponent
+              node={outline}
+              selectedId={selectedId}
+              onSelect={setSelectedId}
+              onToggle={toggleCollapse}
+              onDelete={deleteNode}
+              onAddChild={addChild}
+              onUpdate={updateNode}
+              onMove={moveNode}
+              onMoveToEdge={moveNodeToEdge}
+              onDragStart={handleDragStart}
+              onDrop={handleDrop}
+              isRoot
+            />
+          </div>
         </main>
 
-        {/* Right panel */}
+        {/* Right panel - node details */}
         <aside className="w-72 border-l border-border p-4 overflow-y-auto hidden xl:block">
           {selectedNode ? (
             <motion.div key={selectedNode.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
@@ -238,10 +241,10 @@ const OutlinePage = () => {
               </div>
               <div>
                 <p className="text-xs text-muted-foreground mb-1">说明</p>
-                <Input
+                <Textarea
                   value={selectedNode.description}
                   onChange={(e) => updateNode(selectedNode.id, { description: e.target.value })}
-                  className="text-sm h-8"
+                  className="text-sm min-h-[60px]"
                 />
               </div>
               <div>
@@ -252,19 +255,12 @@ const OutlinePage = () => {
                 <p className="text-xs text-muted-foreground mb-1">子节点数</p>
                 <p className="text-sm text-foreground">{selectedNode.children.length}</p>
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground mb-1">预计页数</p>
-                <p className="text-sm text-foreground">{selectedNode.children.length > 0 ? Math.max(1, Math.ceil(selectedNode.children.length / 2)) : 1} 页</p>
-              </div>
               <div className="space-y-2 pt-2 border-t border-border">
                 <Button size="sm" variant="outline" className="w-full justify-start" onClick={() => addChild(selectedNode.id)}>
                   <Plus className="w-3.5 h-3.5 mr-2" />新增子节点
                 </Button>
                 <Button size="sm" variant="outline" className="w-full justify-start text-destructive" onClick={() => deleteNode(selectedNode.id)}>
                   <Trash2 className="w-3.5 h-3.5 mr-2" />删除节点
-                </Button>
-                <Button size="sm" variant="outline" className="w-full justify-start">
-                  <FileTextIcon className="w-3.5 h-3.5 mr-2" />标记为单独一页
                 </Button>
               </div>
             </motion.div>
@@ -276,7 +272,7 @@ const OutlinePage = () => {
 
       <div className="border-t border-border px-6 py-4 flex justify-end">
         <Button onClick={() => navigate('/template')} size="lg">
-          生成导读工作台
+          选择汇报模板
           <ChevronRight className="w-4 h-4 ml-1" />
         </Button>
       </div>
@@ -285,7 +281,7 @@ const OutlinePage = () => {
 };
 
 function TreeNodeComponent({
-  node, selectedId, onSelect, onToggle, onDelete, onAddChild, onUpdate, onMove, onDragStart, onDrop, isRoot, depth = 0
+  node, selectedId, onSelect, onToggle, onDelete, onAddChild, onUpdate, onMove, onMoveToEdge, onDragStart, onDrop, isRoot, depth = 0
 }: {
   node: OutlineNode;
   selectedId: string | null;
@@ -295,6 +291,7 @@ function TreeNodeComponent({
   onAddChild: (id: string) => void;
   onUpdate: (id: string, updates: Partial<OutlineNode>) => void;
   onMove: (parentId: string | null, nodeId: string, direction: 'up' | 'down') => void;
+  onMoveToEdge: (nodeId: string, edge: 'top' | 'bottom') => void;
   onDragStart: (nodeId: string, parentId: string | null) => void;
   onDrop: (targetNodeId: string, targetParentId: string | null) => void;
   isRoot?: boolean;
@@ -304,11 +301,18 @@ function TreeNodeComponent({
   const isSelected = selectedId === node.id;
   const [editingTitle, setEditingTitle] = useState(false);
   const [editTitle, setEditTitle] = useState(node.title);
+  const [editingDesc, setEditingDesc] = useState(false);
+  const [editDesc, setEditDesc] = useState(node.description);
   const [dragOver, setDragOver] = useState(false);
 
   const commitTitle = () => {
     if (editTitle.trim()) onUpdate(node.id, { title: editTitle.trim() });
     setEditingTitle(false);
+  };
+
+  const commitDesc = () => {
+    onUpdate(node.id, { description: editDesc.trim() });
+    setEditingDesc(false);
   };
 
   return (
@@ -362,7 +366,26 @@ function TreeNodeComponent({
               {node.title}
             </p>
           )}
-          <p className="text-xs text-muted-foreground truncate">{node.description}</p>
+          {editingDesc ? (
+            <div className="flex items-center gap-1 mt-0.5">
+              <Input
+                value={editDesc}
+                onChange={(e) => setEditDesc(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') commitDesc(); if (e.key === 'Escape') setEditingDesc(false); }}
+                autoFocus
+                className="h-5 text-xs px-1"
+              />
+              <button onClick={commitDesc} className="p-0.5"><Check className="w-3 h-3 text-primary" /></button>
+              <button onClick={() => setEditingDesc(false)} className="p-0.5"><X className="w-3 h-3 text-muted-foreground" /></button>
+            </div>
+          ) : (
+            <p
+              className="text-xs text-muted-foreground truncate cursor-text"
+              onDoubleClick={(e) => { e.stopPropagation(); setEditDesc(node.description); setEditingDesc(true); }}
+            >
+              {node.description}
+            </p>
+          )}
         </div>
 
         <DropdownMenu>
@@ -375,8 +398,14 @@ function TreeNodeComponent({
             <DropdownMenuItem onClick={() => { setEditTitle(node.title); setEditingTitle(true); }}>
               ✏️ 编辑标题
             </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => { setEditDesc(node.description); setEditingDesc(true); }}>
+              ✏️ 编辑说明
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={() => onAddChild(node.id)}>
               <Plus className="w-3.5 h-3.5 mr-2" />新增子节点
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onMoveToEdge(node.id, 'top')}>
+              <ChevronsUp className="w-3.5 h-3.5 mr-2" />置顶
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => onMove(node.parentId, node.id, 'up')}>
               <ArrowUp className="w-3.5 h-3.5 mr-2" />上移
@@ -384,11 +413,8 @@ function TreeNodeComponent({
             <DropdownMenuItem onClick={() => onMove(node.parentId, node.id, 'down')}>
               <ArrowDown className="w-3.5 h-3.5 mr-2" />下移
             </DropdownMenuItem>
-            <DropdownMenuItem>
-              <Indent className="w-3.5 h-3.5 mr-2" />缩进
-            </DropdownMenuItem>
-            <DropdownMenuItem>
-              <Outdent className="w-3.5 h-3.5 mr-2" />取消缩进
+            <DropdownMenuItem onClick={() => onMoveToEdge(node.id, 'bottom')}>
+              <ChevronsDown className="w-3.5 h-3.5 mr-2" />置底
             </DropdownMenuItem>
             {!isRoot && (
               <DropdownMenuItem className="text-destructive" onClick={() => onDelete(node.id)}>
@@ -412,6 +438,7 @@ function TreeNodeComponent({
               onAddChild={onAddChild}
               onUpdate={onUpdate}
               onMove={onMove}
+              onMoveToEdge={onMoveToEdge}
               onDragStart={onDragStart}
               onDrop={onDrop}
               depth={depth + 1}
@@ -419,40 +446,6 @@ function TreeNodeComponent({
           ))}
         </div>
       )}
-    </div>
-  );
-}
-
-function MindmapPreview({ outline }: { outline: OutlineNode }) {
-  return (
-    <div className="flex items-center justify-center min-h-[400px]">
-      <div className="flex flex-col items-center">
-        <div className="bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium shadow-sm max-w-48 text-center">
-          {outline.title}
-        </div>
-        <div className="flex mt-6 gap-4 flex-wrap justify-center max-w-4xl">
-          {outline.children.map((child) => (
-            <div key={child.id} className="flex flex-col items-center">
-              <div className="w-px h-4 bg-border" />
-              <div className="bg-card border border-border px-3 py-1.5 rounded-md text-xs font-medium text-foreground shadow-sm max-w-36 text-center">
-                {child.title}
-              </div>
-              {child.children.length > 0 && (
-                <div className="flex mt-3 gap-2 flex-wrap justify-center">
-                  {child.children.map(sub => (
-                    <div key={sub.id} className="flex flex-col items-center">
-                      <div className="w-px h-3 bg-border" />
-                      <div className="bg-muted px-2 py-1 rounded text-xs text-muted-foreground max-w-28 text-center truncate">
-                        {sub.title}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }
