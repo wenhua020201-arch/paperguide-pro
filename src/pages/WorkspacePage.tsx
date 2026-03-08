@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -8,7 +8,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { MOCK_PROJECT } from '@/data/mockData';
-import type { Slide, SlideNotes } from '@/types';
+import type { Slide, SlideNotes, GuideArticle } from '@/types';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
@@ -25,13 +25,99 @@ const TONE_OPTIONS: { value: SlideNotes['tone']; label: string }[] = [
 const WorkspacePage = () => {
   const navigate = useNavigate();
   const [slides, setSlides] = useState<Slide[]>(MOCK_PROJECT.slides);
+  const [article, setArticle] = useState<GuideArticle>(MOCK_PROJECT.article);
+  const [paperTitle, setPaperTitle] = useState(MOCK_PROJECT.paper.title);
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
   const [articleOpen, setArticleOpen] = useState(true);
   const [notesOpen, setNotesOpen] = useState(true);
   const [promptText, setPromptText] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
-  const article = MOCK_PROJECT.article;
+  const [generating, setGenerating] = useState(false);
+  const hasGenerated = useRef(false);
   const currentSlide = slides[currentSlideIndex];
+
+  // On mount, check if we need to generate workspace from AI
+  useEffect(() => {
+    if (hasGenerated.current) return;
+    hasGenerated.current = true;
+
+    const saved = localStorage.getItem('current_project');
+    if (!saved) return; // Use mock data
+
+    try {
+      const data = JSON.parse(saved);
+      
+      // If workspace already generated, load it
+      if (data.slides && data.article) {
+        loadWorkspaceData(data);
+        return;
+      }
+
+      // If we have outline + template, generate workspace
+      if (data.outline && data.paper) {
+        generateWorkspace(data);
+      }
+    } catch {}
+  }, []);
+
+  const loadWorkspaceData = (data: any) => {
+    setPaperTitle(data.paper?.title || MOCK_PROJECT.paper.title);
+    
+    // Normalize slides
+    const normalizedSlides: Slide[] = (data.slides || []).map((s: any, i: number) => ({
+      id: s.id || `s-${i}`,
+      order: i,
+      title: s.title || '未命名',
+      contentBlocks: (s.contentBlocks || []).map((b: any, j: number) => ({
+        id: b.id || `b-${i}-${j}`,
+        type: b.type || 'point',
+        content: b.content || '',
+      })),
+      layout: s.layout || 'title-points',
+      linkedArticleSection: s.linkedArticleSection,
+      notes: {
+        mainTalk: s.notes?.mainTalk || '',
+        extraExplanation: s.notes?.extraExplanation || '',
+        transitionSentence: s.notes?.transitionSentence || '',
+        tone: s.notes?.tone || 'natural',
+      },
+    }));
+
+    if (normalizedSlides.length > 0) setSlides(normalizedSlides);
+    
+    if (data.article?.sections) {
+      setArticle(data.article);
+    }
+  };
+
+  const generateWorkspace = async (data: any) => {
+    setGenerating(true);
+    try {
+      const { data: result, error } = await supabase.functions.invoke('workspace-generate', {
+        body: {
+          outline: data.outline,
+          paper: data.paper,
+          template: data.template || 'seminar',
+          density: data.density || 'standard',
+        },
+      });
+
+      if (error) throw error;
+      if (result?.error) throw new Error(result.error);
+
+      // Save generated data
+      const updated = { ...data, slides: result.slides, article: result.article };
+      localStorage.setItem('current_project', JSON.stringify(updated));
+      
+      loadWorkspaceData(updated);
+      toast.success('导读工作台已生成');
+    } catch (e: any) {
+      console.error('Generate workspace error:', e);
+      toast.error('生成工作台失败: ' + (e.message || '请重试'));
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   const callSlideAI = async (instruction: string) => {
     if (!currentSlide || aiLoading) return;
@@ -53,7 +139,6 @@ const WorkspacePage = () => {
         toast.error(data.error);
         return;
       }
-      // Apply AI result to slide
       const updated = slides.map((s, i) => {
         if (i !== currentSlideIndex) return s;
         return {
@@ -64,6 +149,17 @@ const WorkspacePage = () => {
         };
       });
       setSlides(updated);
+      
+      // Save back to localStorage
+      try {
+        const saved = localStorage.getItem('current_project');
+        if (saved) {
+          const proj = JSON.parse(saved);
+          proj.slides = updated;
+          localStorage.setItem('current_project', JSON.stringify(proj));
+        }
+      } catch {}
+      
       toast.success('AI 已更新页面内容');
     } catch (e: any) {
       console.error('AI error:', e);
@@ -80,6 +176,18 @@ const WorkspacePage = () => {
     callSlideAI(text);
   };
 
+  if (generating) {
+    return (
+      <div className="h-screen bg-background flex flex-col items-center justify-center gap-4">
+        <Loader2 className="w-8 h-8 text-primary animate-spin" />
+        <div className="text-center">
+          <p className="text-lg font-display font-semibold text-foreground mb-1">正在生成导读工作台…</p>
+          <p className="text-sm text-muted-foreground">AI 正在根据大纲生成 PPT、导读文章和演讲注释</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="h-screen bg-background flex flex-col overflow-hidden">
       {/* Header */}
@@ -88,7 +196,7 @@ const WorkspacePage = () => {
           <Button variant="ghost" size="icon" onClick={() => navigate('/')}>
             <ArrowLeft className="w-4 h-4" />
           </Button>
-          <h1 className="text-base font-display font-semibold text-foreground">{MOCK_PROJECT.paper.title}</h1>
+          <h1 className="text-base font-display font-semibold text-foreground">{paperTitle}</h1>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="sm" onClick={() => setArticleOpen(!articleOpen)}>
@@ -228,10 +336,18 @@ const WorkspacePage = () => {
                     </button>
                   ))}
                   <span className="w-px h-4 bg-border mx-1" />
-                  <button className="p-1 rounded hover:bg-secondary transition-colors" title="刷新注释">
+                  <button className="p-1 rounded hover:bg-secondary transition-colors" title="刷新注释"
+                    onClick={() => callSlideAI('请为这一页重新生成演讲注释，包括这页讲什么、补充说明和过渡句')}>
                     <RefreshCw className="w-3 h-3 text-muted-foreground" />
                   </button>
-                  <button className="p-1 rounded hover:bg-secondary transition-colors" title="复制注释">
+                  <button className="p-1 rounded hover:bg-secondary transition-colors" title="复制注释"
+                    onClick={() => {
+                      if (currentSlide) {
+                        const text = `这页讲什么：${currentSlide.notes.mainTalk}\n补充说明：${currentSlide.notes.extraExplanation}\n过渡句：${currentSlide.notes.transitionSentence}`;
+                        navigator.clipboard.writeText(text);
+                        toast.success('注释已复制');
+                      }
+                    }}>
                     <Copy className="w-3 h-3 text-muted-foreground" />
                   </button>
                 </div>
