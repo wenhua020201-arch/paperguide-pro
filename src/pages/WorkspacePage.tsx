@@ -1,13 +1,14 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, ChevronUp, ChevronDown, Plus, MoreHorizontal, Copy, RefreshCw,
   PanelLeftClose, PanelLeftOpen, GripVertical, Send, Sparkles, Loader2,
-  FileText as FileTextIcon, LayoutGrid
+  FileText as FileTextIcon, LayoutGrid, Check, X, Pencil
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import { MOCK_PROJECT } from '@/data/mockData';
 import type { Slide, SlideNotes, ContentBlock } from '@/types';
 import {
@@ -36,6 +37,7 @@ const WorkspacePage = () => {
   const [promptText, setPromptText] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [notesRefreshing, setNotesRefreshing] = useState(false);
   const hasGenerated = useRef(false);
   const currentSlide = slides[currentSlideIndex];
 
@@ -122,6 +124,57 @@ const WorkspacePage = () => {
     }
   };
 
+  // Save slides to localStorage
+  const persistSlides = useCallback((updatedSlides: Slide[]) => {
+    try {
+      const saved = localStorage.getItem('current_project');
+      if (saved) {
+        const proj = JSON.parse(saved);
+        proj.slides = updatedSlides;
+        localStorage.setItem('current_project', JSON.stringify(proj));
+      }
+    } catch {}
+  }, []);
+
+  // Update a single slide and persist
+  const updateSlide = useCallback((index: number, updater: (s: Slide) => Slide) => {
+    setSlides(prev => {
+      const updated = prev.map((s, i) => i === index ? updater(s) : s);
+      persistSlides(updated);
+      return updated;
+    });
+  }, [persistSlides]);
+
+  // Refresh notes after content edit
+  const refreshNotesForSlide = useCallback(async (slide: Slide) => {
+    setNotesRefreshing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('slide-ai', {
+        body: {
+          mode: 'refresh-notes',
+          messages: [],
+          slideContext: {
+            title: slide.title,
+            contentBlocks: slide.contentBlocks,
+            layout: slide.layout,
+          },
+        },
+      });
+      if (error) throw error;
+      if (data?.notes) {
+        updateSlide(currentSlideIndex, s => ({
+          ...s,
+          notes: { ...s.notes, ...data.notes },
+        }));
+        toast.success('演讲注释已自动更新');
+      }
+    } catch (e: any) {
+      console.error('Notes refresh error:', e);
+    } finally {
+      setNotesRefreshing(false);
+    }
+  }, [currentSlideIndex, updateSlide]);
+
   const callSlideAI = async (instruction: string) => {
     if (!currentSlide || aiLoading) return;
     setAiLoading(true);
@@ -150,14 +203,7 @@ const WorkspacePage = () => {
         };
       });
       setSlides(updated);
-      try {
-        const saved = localStorage.getItem('current_project');
-        if (saved) {
-          const proj = JSON.parse(saved);
-          proj.slides = updated;
-          localStorage.setItem('current_project', JSON.stringify(proj));
-        }
-      } catch {}
+      persistSlides(updated);
       toast.success('AI 已更新页面内容');
     } catch (e: any) {
       console.error('AI error:', e);
@@ -173,6 +219,29 @@ const WorkspacePage = () => {
     setPromptText('');
     callSlideAI(text);
   };
+
+  // Handle inline edit of slide content
+  const handleContentEdit = useCallback((blockId: string, newContent: string) => {
+    updateSlide(currentSlideIndex, s => ({
+      ...s,
+      contentBlocks: s.contentBlocks.map(b =>
+        b.id === blockId ? { ...b, content: newContent } : b
+      ),
+    }));
+  }, [currentSlideIndex, updateSlide]);
+
+  const handleTitleEdit = useCallback((newTitle: string) => {
+    updateSlide(currentSlideIndex, s => ({ ...s, title: newTitle }));
+  }, [currentSlideIndex, updateSlide]);
+
+  // Trigger notes refresh after editing
+  const handleEditComplete = useCallback(() => {
+    if (currentSlide) {
+      // Get latest slide state
+      const latestSlide = slides[currentSlideIndex];
+      if (latestSlide) refreshNotesForSlide(latestSlide);
+    }
+  }, [currentSlide, slides, currentSlideIndex, refreshNotesForSlide]);
 
   if (generating) {
     return (
@@ -233,7 +302,14 @@ const WorkspacePage = () => {
           <div className="flex-1 flex flex-col items-center justify-center p-6 overflow-auto">
             {currentSlide && (
               <motion.div key={currentSlide.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full max-w-4xl">
-                <SlideEditor slide={currentSlide} onAiAction={callSlideAI} aiLoading={aiLoading} />
+                <SlideEditor
+                  slide={currentSlide}
+                  onAiAction={callSlideAI}
+                  aiLoading={aiLoading}
+                  onContentEdit={handleContentEdit}
+                  onTitleEdit={handleTitleEdit}
+                  onEditComplete={handleEditComplete}
+                />
               </motion.div>
             )}
 
@@ -244,7 +320,7 @@ const WorkspacePage = () => {
                 <Textarea
                   value={promptText}
                   onChange={(e) => setPromptText(e.target.value)}
-                  placeholder={`对第 ${currentSlideIndex + 1} 页提出修改意见，如"增加更多实验数据对比"、"改成四分框布局"、"补充方法流程图"…`}
+                  placeholder={`对第 ${currentSlideIndex + 1} 页提出修改意见，如"增加更多实验数据对比"、"改成四分框布局"、"生成实验流程图"…`}
                   className="min-h-[36px] max-h-[80px] text-sm border-0 shadow-none resize-none focus-visible:ring-0 p-1"
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handlePromptSubmit(); }
@@ -263,6 +339,7 @@ const WorkspacePage = () => {
                   '增加方法流程步骤',
                   '精简内容只保留核心',
                   '更适合口头讲解',
+                  '生成实验流程图',
                 ].map(chip => (
                   <button
                     key={chip}
@@ -282,6 +359,7 @@ const WorkspacePage = () => {
             <div className="flex items-center justify-between px-4 py-2">
               <button onClick={() => setNotesOpen(!notesOpen)} className="flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
                 <span>演讲注释</span>
+                {notesRefreshing && <Loader2 className="w-3 h-3 animate-spin text-primary" />}
                 {notesOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
               </button>
               {notesOpen && currentSlide && (
@@ -293,10 +371,10 @@ const WorkspacePage = () => {
                         currentSlide.notes.tone === t.value ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground hover:text-foreground'
                       }`}
                       onClick={() => {
-                        const updated = slides.map((s, i) =>
-                          i === currentSlideIndex ? { ...s, notes: { ...s.notes, tone: t.value } } : s
-                        );
-                        setSlides(updated);
+                        updateSlide(currentSlideIndex, s => ({
+                          ...s,
+                          notes: { ...s.notes, tone: t.value },
+                        }));
                       }}
                     >
                       {t.label}
@@ -304,8 +382,8 @@ const WorkspacePage = () => {
                   ))}
                   <span className="w-px h-4 bg-border mx-1" />
                   <button className="p-1 rounded hover:bg-secondary transition-colors" title="刷新注释"
-                    onClick={() => callSlideAI('请为这一页重新生成演讲注释')}>
-                    <RefreshCw className="w-3 h-3 text-muted-foreground" />
+                    onClick={() => currentSlide && refreshNotesForSlide(currentSlide)}>
+                    <RefreshCw className={`w-3 h-3 text-muted-foreground ${notesRefreshing ? 'animate-spin' : ''}`} />
                   </button>
                   <button className="p-1 rounded hover:bg-secondary transition-colors" title="复制注释"
                     onClick={() => {
@@ -361,7 +439,9 @@ const WorkspacePage = () => {
                 layout: 'title-points',
                 notes: { mainTalk: '', extraExplanation: '', transitionSentence: '', tone: 'natural' },
               };
-              setSlides([...slides, newSlide]);
+              const updated = [...slides, newSlide];
+              setSlides(updated);
+              persistSlides(updated);
             }}
             className="w-full border-2 border-dashed border-border rounded-lg p-3 text-xs text-muted-foreground hover:border-primary/30 hover:text-foreground transition-colors flex items-center justify-center gap-1"
           >
@@ -374,9 +454,89 @@ const WorkspacePage = () => {
   );
 };
 
+/* ============ Inline Editable Text ============ */
+
+function EditableText({
+  value,
+  onSave,
+  onEditComplete,
+  className = '',
+  as: Tag = 'p',
+  editClassName = '',
+}: {
+  value: string;
+  onSave: (v: string) => void;
+  onEditComplete?: () => void;
+  className?: string;
+  as?: 'p' | 'h2' | 'h3' | 'span';
+  editClassName?: string;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [text, setText] = useState(value);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => { setText(value); }, [value]);
+  useEffect(() => {
+    if (editing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [editing]);
+
+  const commit = () => {
+    setEditing(false);
+    if (text.trim() !== value) {
+      onSave(text.trim());
+      // Trigger notes refresh after a small delay
+      if (onEditComplete) setTimeout(onEditComplete, 300);
+    }
+  };
+
+  if (editing) {
+    return (
+      <textarea
+        ref={inputRef}
+        value={text}
+        onChange={e => setText(e.target.value)}
+        onBlur={commit}
+        onKeyDown={e => {
+          if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); commit(); }
+          if (e.key === 'Escape') { setText(value); setEditing(false); }
+        }}
+        className={`w-full bg-transparent border border-primary/30 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-primary/50 resize-none ${editClassName || className}`}
+        rows={Math.max(1, Math.ceil(text.length / 60))}
+      />
+    );
+  }
+
+  return (
+    <Tag
+      className={`${className} cursor-text hover:bg-primary/5 rounded px-0.5 transition-colors`}
+      onDoubleClick={() => setEditing(true)}
+      title="双击编辑"
+    >
+      {value}
+    </Tag>
+  );
+}
+
 /* ============ Slide Editor ============ */
 
-function SlideEditor({ slide, onAiAction, aiLoading }: { slide: Slide; onAiAction: (instruction: string) => void; aiLoading: boolean }) {
+function SlideEditor({
+  slide,
+  onAiAction,
+  aiLoading,
+  onContentEdit,
+  onTitleEdit,
+  onEditComplete,
+}: {
+  slide: Slide;
+  onAiAction: (instruction: string) => void;
+  aiLoading: boolean;
+  onContentEdit: (blockId: string, content: string) => void;
+  onTitleEdit: (title: string) => void;
+  onEditComplete: () => void;
+}) {
   const isCover = slide.layout === 'cover';
 
   return (
@@ -409,10 +569,14 @@ function SlideEditor({ slide, onAiAction, aiLoading }: { slide: Slide; onAiActio
         </DropdownMenu>
       </div>
 
-      {/* Layout badge */}
-      <div className="absolute top-2 left-2 z-10">
+      {/* Layout badge + edit hint */}
+      <div className="absolute top-2 left-2 z-10 flex items-center gap-1.5">
         <span className="opacity-0 group-hover:opacity-100 transition-opacity px-2 py-0.5 rounded text-[10px] bg-muted text-muted-foreground">
           {slide.layout}
+        </span>
+        <span className="opacity-0 group-hover:opacity-100 transition-opacity px-2 py-0.5 rounded text-[10px] bg-primary/10 text-primary flex items-center gap-0.5">
+          <Pencil className="w-2.5 h-2.5" />
+          双击编辑
         </span>
       </div>
 
@@ -421,15 +585,38 @@ function SlideEditor({ slide, onAiAction, aiLoading }: { slide: Slide; onAiActio
       }`}>
         {isCover ? (
           <>
-            <h2 className="text-2xl font-display font-bold text-foreground mb-3">{slide.title}</h2>
+            <EditableText
+              value={slide.title}
+              onSave={onTitleEdit}
+              onEditComplete={onEditComplete}
+              className="text-2xl font-display font-bold text-foreground mb-3"
+              as="h2"
+            />
             {slide.contentBlocks.map(b => (
-              <p key={b.id} className="text-sm text-muted-foreground">{b.content}</p>
+              <EditableText
+                key={b.id}
+                value={b.content}
+                onSave={(v) => onContentEdit(b.id, v)}
+                onEditComplete={onEditComplete}
+                className="text-sm text-muted-foreground"
+              />
             ))}
           </>
         ) : (
           <>
-            <h2 className="text-xl font-display font-bold text-foreground mb-5">{slide.title}</h2>
-            <SlideContentRenderer layout={slide.layout} blocks={slide.contentBlocks} />
+            <EditableText
+              value={slide.title}
+              onSave={onTitleEdit}
+              onEditComplete={onEditComplete}
+              className="text-xl font-display font-bold text-foreground mb-5"
+              as="h2"
+            />
+            <SlideContentRenderer
+              layout={slide.layout}
+              blocks={slide.contentBlocks}
+              onContentEdit={onContentEdit}
+              onEditComplete={onEditComplete}
+            />
           </>
         )}
       </div>
@@ -439,8 +626,17 @@ function SlideEditor({ slide, onAiAction, aiLoading }: { slide: Slide; onAiActio
 
 /* ============ Content Renderer per Layout ============ */
 
-function SlideContentRenderer({ layout, blocks }: { layout: string; blocks: ContentBlock[] }) {
-  // Two-column layout
+function SlideContentRenderer({
+  layout,
+  blocks,
+  onContentEdit,
+  onEditComplete,
+}: {
+  layout: string;
+  blocks: ContentBlock[];
+  onContentEdit: (id: string, content: string) => void;
+  onEditComplete: () => void;
+}) {
   if (layout === 'title-two-column') {
     const mid = Math.ceil(blocks.length / 2);
     const left = blocks.slice(0, mid);
@@ -448,39 +644,47 @@ function SlideContentRenderer({ layout, blocks }: { layout: string; blocks: Cont
     return (
       <div className="grid grid-cols-2 gap-6">
         <div className="space-y-2.5 border-r border-border pr-4">
-          {left.map(b => <BlockRenderer key={b.id} block={b} />)}
+          {left.map(b => <BlockRenderer key={b.id} block={b} onEdit={onContentEdit} onEditComplete={onEditComplete} />)}
         </div>
         <div className="space-y-2.5">
-          {right.map(b => <BlockRenderer key={b.id} block={b} />)}
+          {right.map(b => <BlockRenderer key={b.id} block={b} onEdit={onContentEdit} onEditComplete={onEditComplete} />)}
         </div>
       </div>
     );
   }
 
-  // Quad layout
   if (layout === 'title-quad') {
     return (
       <div className="grid grid-cols-2 gap-3">
         {blocks.map(b => (
           <div key={b.id} className="bg-secondary/40 border border-border rounded-lg p-4">
-            <p className="text-sm font-medium text-foreground leading-relaxed">{b.content}</p>
+            <EditableText
+              value={b.content}
+              onSave={(v) => onContentEdit(b.id, v)}
+              onEditComplete={onEditComplete}
+              className="text-sm font-medium text-foreground leading-relaxed"
+            />
           </div>
         ))}
       </div>
     );
   }
 
-  // Timeline layout
   if (layout === 'title-timeline') {
     return (
       <div className="relative pl-4">
         <div className="absolute left-1.5 top-1 bottom-1 w-0.5 bg-primary/20 rounded-full" />
         <div className="space-y-4">
-          {blocks.map((b, i) => (
+          {blocks.map(b => (
             <div key={b.id} className="relative flex gap-3">
               <div className="absolute -left-[10.5px] top-1.5 w-2.5 h-2.5 rounded-full bg-primary border-2 border-card" />
               <div className="flex-1 bg-muted/40 rounded-lg p-3 border border-border">
-                <p className="text-sm text-foreground leading-relaxed">{b.content}</p>
+                <EditableText
+                  value={b.content}
+                  onSave={(v) => onContentEdit(b.id, v)}
+                  onEditComplete={onEditComplete}
+                  className="text-sm text-foreground leading-relaxed"
+                />
               </div>
             </div>
           ))}
@@ -489,7 +693,6 @@ function SlideContentRenderer({ layout, blocks }: { layout: string; blocks: Cont
     );
   }
 
-  // Method flow layout
   if (layout === 'title-method-flow') {
     return (
       <div className="space-y-1">
@@ -499,7 +702,12 @@ function SlideContentRenderer({ layout, blocks }: { layout: string; blocks: Cont
               <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs flex items-center justify-center font-bold mt-0.5">
                 {i + 1}
               </span>
-              <p className="text-sm text-foreground leading-relaxed flex-1">{b.content}</p>
+              <EditableText
+                value={b.content}
+                onSave={(v) => onContentEdit(b.id, v)}
+                onEditComplete={onEditComplete}
+                className="text-sm text-foreground leading-relaxed flex-1"
+              />
             </div>
             {i < blocks.length - 1 && (
               <div className="flex justify-center py-0.5">
@@ -512,21 +720,24 @@ function SlideContentRenderer({ layout, blocks }: { layout: string; blocks: Cont
     );
   }
 
-  // Findings layout
   if (layout === 'title-findings') {
     return (
       <div className="space-y-3">
-        {blocks.map((b, i) => (
+        {blocks.map(b => (
           <div key={b.id} className="bg-accent/10 border border-accent/20 rounded-lg p-4 flex items-start gap-3">
             <span className="flex-shrink-0 text-lg">💡</span>
-            <p className="text-sm text-foreground leading-relaxed font-medium">{b.content}</p>
+            <EditableText
+              value={b.content}
+              onSave={(v) => onContentEdit(b.id, v)}
+              onEditComplete={onEditComplete}
+              className="text-sm text-foreground leading-relaxed font-medium"
+            />
           </div>
         ))}
       </div>
     );
   }
 
-  // Results layout
   if (layout === 'title-results') {
     return (
       <div className="space-y-3">
@@ -535,20 +746,22 @@ function SlideContentRenderer({ layout, blocks }: { layout: string; blocks: Cont
             b.type === 'finding' ? 'bg-accent/10 border border-accent/20' :
             b.type === 'heading' ? '' : 'bg-muted/40 border border-border'
           }`}>
-            <p className={`text-sm leading-relaxed ${
-              b.type === 'finding' ? 'text-accent-foreground font-semibold' :
-              b.type === 'heading' ? 'text-foreground font-display font-bold text-base mb-1' :
-              'text-foreground'
-            }`}>
-              {b.content}
-            </p>
+            <EditableText
+              value={b.content}
+              onSave={(v) => onContentEdit(b.id, v)}
+              onEditComplete={onEditComplete}
+              className={`text-sm leading-relaxed ${
+                b.type === 'finding' ? 'text-accent-foreground font-semibold' :
+                b.type === 'heading' ? 'text-foreground font-display font-bold text-base mb-1' :
+                'text-foreground'
+              }`}
+            />
           </div>
         ))}
       </div>
     );
   }
 
-  // Summary layout
   if (layout === 'title-summary') {
     return (
       <div className="space-y-4">
@@ -556,13 +769,16 @@ function SlideContentRenderer({ layout, blocks }: { layout: string; blocks: Cont
           <div key={b.id} className={`${
             b.type === 'summary' ? 'border-l-4 border-primary pl-4 py-2' : ''
           }`}>
-            <p className={`text-sm leading-relaxed ${
-              b.type === 'summary' ? 'text-foreground italic' :
-              b.type === 'finding' ? 'text-primary font-semibold bg-primary/5 rounded-lg p-3' :
-              'text-foreground'
-            }`}>
-              {b.content}
-            </p>
+            <EditableText
+              value={b.content}
+              onSave={(v) => onContentEdit(b.id, v)}
+              onEditComplete={onEditComplete}
+              className={`text-sm leading-relaxed ${
+                b.type === 'summary' ? 'text-foreground italic' :
+                b.type === 'finding' ? 'text-primary font-semibold bg-primary/5 rounded-lg p-3' :
+                'text-foreground'
+              }`}
+            />
           </div>
         ))}
       </div>
@@ -572,20 +788,41 @@ function SlideContentRenderer({ layout, blocks }: { layout: string; blocks: Cont
   // Default: title-points, title-subpoints
   return (
     <div className="space-y-2.5">
-      {blocks.map(b => <BlockRenderer key={b.id} block={b} />)}
+      {blocks.map(b => <BlockRenderer key={b.id} block={b} onEdit={onContentEdit} onEditComplete={onEditComplete} />)}
     </div>
   );
 }
 
-function BlockRenderer({ block: b }: { block: ContentBlock }) {
+function BlockRenderer({
+  block: b,
+  onEdit,
+  onEditComplete,
+}: {
+  block: ContentBlock;
+  onEdit: (id: string, content: string) => void;
+  onEditComplete: () => void;
+}) {
   if (b.type === 'heading') {
-    return <h3 className="text-base font-display font-bold text-foreground mt-3 mb-1">{b.content}</h3>;
+    return (
+      <EditableText
+        value={b.content}
+        onSave={(v) => onEdit(b.id, v)}
+        onEditComplete={onEditComplete}
+        className="text-base font-display font-bold text-foreground mt-3 mb-1"
+        as="h3"
+      />
+    );
   }
   if (b.type === 'point') {
     return (
       <div className="flex items-start gap-2.5">
         <span className="w-1.5 h-1.5 rounded-full bg-primary mt-2 flex-shrink-0" />
-        <p className="text-sm text-foreground leading-relaxed">{b.content}</p>
+        <EditableText
+          value={b.content}
+          onSave={(v) => onEdit(b.id, v)}
+          onEditComplete={onEditComplete}
+          className="text-sm text-foreground leading-relaxed"
+        />
       </div>
     );
   }
@@ -593,39 +830,71 @@ function BlockRenderer({ block: b }: { block: ContentBlock }) {
     return (
       <div className="flex items-start gap-2 ml-5">
         <span className="text-muted-foreground text-xs mt-0.5">–</span>
-        <p className="text-sm text-muted-foreground leading-relaxed">{b.content}</p>
+        <EditableText
+          value={b.content}
+          onSave={(v) => onEdit(b.id, v)}
+          onEditComplete={onEditComplete}
+          className="text-sm text-muted-foreground leading-relaxed"
+        />
       </div>
     );
   }
   if (b.type === 'finding') {
     return (
       <div className="bg-primary/5 border border-primary/15 rounded-lg p-3">
-        <p className="text-sm text-primary font-medium leading-relaxed">{b.content}</p>
+        <EditableText
+          value={b.content}
+          onSave={(v) => onEdit(b.id, v)}
+          onEditComplete={onEditComplete}
+          className="text-sm text-primary font-medium leading-relaxed"
+        />
       </div>
     );
   }
   if (b.type === 'summary') {
     return (
       <div className="border-t border-border pt-3 mt-4">
-        <p className="text-sm text-muted-foreground italic leading-relaxed">{b.content}</p>
+        <EditableText
+          value={b.content}
+          onSave={(v) => onEdit(b.id, v)}
+          onEditComplete={onEditComplete}
+          className="text-sm text-muted-foreground italic leading-relaxed"
+        />
       </div>
     );
   }
   if (b.type === 'quad-item') {
     return (
       <div className="bg-secondary/50 rounded-lg p-3">
-        <p className="text-sm text-foreground font-medium leading-relaxed">{b.content}</p>
+        <EditableText
+          value={b.content}
+          onSave={(v) => onEdit(b.id, v)}
+          onEditComplete={onEditComplete}
+          className="text-sm text-foreground font-medium leading-relaxed"
+        />
       </div>
     );
   }
   if (b.type === 'timeline-item') {
     return (
       <div className="border-l-2 border-primary/30 pl-3 py-1">
-        <p className="text-sm text-foreground leading-relaxed">{b.content}</p>
+        <EditableText
+          value={b.content}
+          onSave={(v) => onEdit(b.id, v)}
+          onEditComplete={onEditComplete}
+          className="text-sm text-foreground leading-relaxed"
+        />
       </div>
     );
   }
-  return <p className="text-sm text-foreground leading-relaxed">{b.content}</p>;
+  return (
+    <EditableText
+      value={b.content}
+      onSave={(v) => onEdit(b.id, v)}
+      onEditComplete={onEditComplete}
+      className="text-sm text-foreground leading-relaxed"
+    />
+  );
 }
 
 /* ============ Notes Panel ============ */
