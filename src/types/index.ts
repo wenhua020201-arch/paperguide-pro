@@ -43,11 +43,13 @@ export type SlideLayout =
   | 'title-findings'
   | 'title-method-flow'
   | 'title-results'
+  | 'title-quad'
+  | 'title-timeline'
   | 'cover';
 
 export interface ContentBlock {
   id: string;
-  type: 'heading' | 'point' | 'subpoint' | 'summary' | 'text' | 'finding';
+  type: 'heading' | 'point' | 'subpoint' | 'summary' | 'text' | 'finding' | 'quad-item' | 'timeline-item';
   content: string;
   children?: ContentBlock[];
 }
