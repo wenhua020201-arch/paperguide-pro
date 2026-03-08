@@ -3,7 +3,17 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, ChevronUp, ChevronDown, Plus, MoreHorizontal, Copy, RefreshCw,
-  PanelLeftClose, PanelLeftOpen, GripVertical, Send, Sparkles
+  PanelLeftClose, PanelLeftOpen, GripVertical, Send, Sparkles, Loader2
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { MOCK_PROJECT } from '@/data/mockData';
+import type { Slide, SlideNotes } from '@/types';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
+} from '@/components/ui/dropdown-menu';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
