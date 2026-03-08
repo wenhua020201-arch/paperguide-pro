@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { getCurrentPdfUrl } from '@/lib/pdfStorage';
+import PdfViewer from '@/components/PdfViewer';
 
 const TONE_OPTIONS: { value: SlideNotes['tone']; label: string }[] = [
   { value: 'concise', label: '简洁' },
@@ -34,23 +34,12 @@ const WorkspacePage = () => {
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
   const [articleOpen, setArticleOpen] = useState(true);
   const [pdfOpen, setPdfOpen] = useState(true);
-  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [notesOpen, setNotesOpen] = useState(true);
   const [promptText, setPromptText] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const hasGenerated = useRef(false);
   const currentSlide = slides[currentSlideIndex];
-
-  // Load PDF
-  useEffect(() => {
-    getCurrentPdfUrl().then(url => {
-      if (url) setPdfUrl(url);
-    }).catch(() => {});
-    return () => {
-      if (pdfUrl) URL.revokeObjectURL(pdfUrl);
-    };
-  }, []);
 
   // On mount, check if we need to generate workspace from AI
   useEffect(() => {
@@ -240,15 +229,7 @@ const WorkspacePage = () => {
                   <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">论文原文</span>
                 </div>
                 <div className="flex-1 overflow-hidden">
-                  {pdfUrl ? (
-                    <object data={pdfUrl} type="application/pdf" className="w-full h-full">
-                      <iframe src={pdfUrl} className="w-full h-full border-0" title="论文 PDF" />
-                    </object>
-                  ) : (
-                    <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
-                      <p>未找到 PDF 文件</p>
-                    </div>
-                  )}
+                  <PdfViewer />
                 </div>
               </div>
             </motion.aside>

@@ -14,7 +14,7 @@ import type { OutlineNode, PaperMeta } from '@/types';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
-import { getCurrentPdfUrl } from '@/lib/pdfStorage';
+import PdfViewer from '@/components/PdfViewer';
 
 const OutlinePage = () => {
   const navigate = useNavigate();
@@ -22,7 +22,6 @@ const OutlinePage = () => {
   const [paper, setPaper] = useState<PaperMeta>(MOCK_PAPER);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [pdfOpen, setPdfOpen] = useState(true);
-  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -32,16 +31,7 @@ const OutlinePage = () => {
         if (data.outline) setOutline(data.outline);
         if (data.paper) setPaper(data.paper);
       }
-    } catch {}
-    // Load PDF from IndexedDB
-    getCurrentPdfUrl().then(url => {
-      if (url) setPdfUrl(url);
-    }).catch(() => {});
-    
-    return () => {
-      // Cleanup blob URL on unmount
-      if (pdfUrl) URL.revokeObjectURL(pdfUrl);
-    };
+    } catch {};
   }, []);
 
   const findNode = useCallback((root: OutlineNode, id: string): OutlineNode | null => {
@@ -199,23 +189,7 @@ const OutlinePage = () => {
                   <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">论文原文</span>
                 </div>
                 <div className="flex-1 overflow-hidden">
-                  {pdfUrl ? (
-                    <object
-                      data={pdfUrl}
-                      type="application/pdf"
-                      className="w-full h-full"
-                    >
-                      <iframe
-                        src={pdfUrl}
-                        className="w-full h-full border-0"
-                        title="论文 PDF"
-                      />
-                    </object>
-                  ) : (
-                    <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
-                      <p>未找到 PDF 文件</p>
-                    </div>
-                  )}
+                  <PdfViewer />
                 </div>
               </div>
             </motion.aside>
