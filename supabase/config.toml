@@ -8,3 +8,15 @@ verify_jwt = false
 
 [functions.workspace-generate]
 verify_jwt = false
+
+[functions.create-job]
+verify_jwt = false
+
+[functions.get-job-status]
+verify_jwt = false
+
+[functions.run-ppt-job]
+verify_jwt = false
+
+[functions.retry-job-step]
+verify_jwt = false

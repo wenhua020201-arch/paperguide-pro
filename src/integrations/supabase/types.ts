@@ -14,7 +14,104 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      ppt_job_steps: {
+        Row: {
+          created_at: string
+          duration_ms: number | null
+          error_message: string | null
+          id: string
+          job_id: string
+          retry_count: number
+          step_input: Json | null
+          step_name: Database["public"]["Enums"]["step_name"]
+          step_output: Json | null
+          step_status: Database["public"]["Enums"]["step_status"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
+          id?: string
+          job_id: string
+          retry_count?: number
+          step_input?: Json | null
+          step_name: Database["public"]["Enums"]["step_name"]
+          step_output?: Json | null
+          step_status?: Database["public"]["Enums"]["step_status"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
+          id?: string
+          job_id?: string
+          retry_count?: number
+          step_input?: Json | null
+          step_name?: Database["public"]["Enums"]["step_name"]
+          step_output?: Json | null
+          step_status?: Database["public"]["Enums"]["step_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ppt_job_steps_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "ppt_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ppt_jobs: {
+        Row: {
+          created_at: string
+          current_stage: Database["public"]["Enums"]["step_name"] | null
+          error_message: string | null
+          id: string
+          input_payload: Json
+          language: string
+          presentation_style: string
+          progress: number
+          result_file_path: string | null
+          selected_template: string
+          status: Database["public"]["Enums"]["job_status"]
+          target_slide_count: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          current_stage?: Database["public"]["Enums"]["step_name"] | null
+          error_message?: string | null
+          id?: string
+          input_payload: Json
+          language?: string
+          presentation_style?: string
+          progress?: number
+          result_file_path?: string | null
+          selected_template?: string
+          status?: Database["public"]["Enums"]["job_status"]
+          target_slide_count?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          current_stage?: Database["public"]["Enums"]["step_name"] | null
+          error_message?: string | null
+          id?: string
+          input_payload?: Json
+          language?: string
+          presentation_style?: string
+          progress?: number
+          result_file_path?: string | null
+          selected_template?: string
+          status?: Database["public"]["Enums"]["job_status"]
+          target_slide_count?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +120,14 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      job_status: "pending" | "running" | "completed" | "failed" | "cancelled"
+      step_name:
+        | "section_summarized"
+        | "slide_planned"
+        | "slide_written"
+        | "design_decided"
+        | "rendered"
+      step_status: "pending" | "running" | "completed" | "failed" | "skipped"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +254,16 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      job_status: ["pending", "running", "completed", "failed", "cancelled"],
+      step_name: [
+        "section_summarized",
+        "slide_planned",
+        "slide_written",
+        "design_decided",
+        "rendered",
+      ],
+      step_status: ["pending", "running", "completed", "failed", "skipped"],
+    },
   },
 } as const
