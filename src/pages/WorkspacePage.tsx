@@ -53,6 +53,7 @@ const WorkspacePage = () => {
     try {
       const data = JSON.parse(saved);
       if (data.slides) {
+        if (data.language) setLanguage(data.language);
         loadWorkspaceData(data);
         return;
       }
