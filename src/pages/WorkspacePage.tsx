@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, ChevronUp, ChevronDown, Plus, MoreHorizontal, Copy, RefreshCw,
   PanelLeftClose, PanelLeftOpen, GripVertical, Send, Sparkles, Loader2,
-  FileText as FileTextIcon, LayoutGrid, Check, X, Pencil
+  FileText as FileTextIcon, LayoutGrid, Check, X, Pencil, Languages
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -38,8 +38,10 @@ const WorkspacePage = () => {
   const [aiLoading, setAiLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [notesRefreshing, setNotesRefreshing] = useState(false);
+  const [language, setLanguage] = useState<'zh' | 'en'>('zh');
   const hasGenerated = useRef(false);
   const currentSlide = slides[currentSlideIndex];
+  const isEn = language === 'en';
 
   useEffect(() => {
     if (hasGenerated.current) return;
@@ -51,6 +53,7 @@ const WorkspacePage = () => {
     try {
       const data = JSON.parse(saved);
       if (data.slides) {
+        if (data.language) setLanguage(data.language);
         loadWorkspaceData(data);
         return;
       }
@@ -92,6 +95,7 @@ const WorkspacePage = () => {
           paper: data.paper,
           template: data.template || 'seminar',
           density: data.density || 'standard',
+          language: data.language || 'zh',
         },
       });
       if (error) throw error;
@@ -248,8 +252,8 @@ const WorkspacePage = () => {
       <div className="h-screen bg-background flex flex-col items-center justify-center gap-4">
         <Loader2 className="w-8 h-8 text-primary animate-spin" />
         <div className="text-center">
-          <p className="text-lg font-display font-semibold text-foreground mb-1">正在生成导读工作台…</p>
-          <p className="text-sm text-muted-foreground">AI 正在根据大纲生成 PPT 和演讲注释</p>
+          <p className="text-lg font-display font-semibold text-foreground mb-1">{isEn ? 'Generating workspace…' : '正在生成导读工作台…'}</p>
+          <p className="text-sm text-muted-foreground">{isEn ? 'AI is generating slides and speaker notes from your outline' : 'AI 正在根据大纲生成 PPT 和演讲注释'}</p>
         </div>
       </div>
     );
@@ -265,11 +269,26 @@ const WorkspacePage = () => {
           <h1 className="text-base font-display font-semibold text-foreground">{paperTitle}</h1>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => {
+            const newLang = language === 'zh' ? 'en' : 'zh';
+            setLanguage(newLang);
+            try {
+              const saved = localStorage.getItem('current_project');
+              if (saved) {
+                const data = JSON.parse(saved);
+                data.language = newLang;
+                localStorage.setItem('current_project', JSON.stringify(data));
+              }
+            } catch {}
+          }} className="gap-1.5">
+            <Languages className="w-3.5 h-3.5" />
+            <span className="text-xs font-medium">{isEn ? 'EN' : '中文'}</span>
+          </Button>
           <Button variant="ghost" size="sm" onClick={() => setPdfOpen(!pdfOpen)}>
             <FileTextIcon className="w-4 h-4" />
-            <span className="ml-1 text-xs">原文</span>
+            <span className="ml-1 text-xs">{isEn ? 'Paper' : '原文'}</span>
           </Button>
-          <Button variant="outline" size="sm" onClick={() => navigate('/export')}>导出</Button>
+          <Button variant="outline" size="sm" onClick={() => navigate('/export')}>{isEn ? 'Export' : '导出'}</Button>
         </div>
       </header>
 
@@ -287,7 +306,7 @@ const WorkspacePage = () => {
               <div className="w-[420px] h-full flex flex-col">
                 <div className="px-3 py-2 border-b border-border flex items-center gap-2">
                   <FileTextIcon className="w-3.5 h-3.5 text-muted-foreground" />
-                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">论文原文</span>
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{isEn ? 'Original Paper' : '论文原文'}</span>
                 </div>
                 <div className="flex-1 overflow-hidden">
                   <PdfViewer />
@@ -320,7 +339,10 @@ const WorkspacePage = () => {
                 <Textarea
                   value={promptText}
                   onChange={(e) => setPromptText(e.target.value)}
-                  placeholder={`对第 ${currentSlideIndex + 1} 页提出修改意见，如"增加更多实验数据对比"、"改成四分框布局"、"生成实验流程图"…`}
+                  placeholder={isEn
+                    ? `Suggest edits for slide ${currentSlideIndex + 1}, e.g. "add more experimental data", "switch to quad layout"…`
+                    : `对第 ${currentSlideIndex + 1} 页提出修改意见，如"增加更多实验数据对比"、"改成四分框布局"…`
+                  }
                   className="min-h-[36px] max-h-[80px] text-sm border-0 shadow-none resize-none focus-visible:ring-0 p-1"
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handlePromptSubmit(); }
@@ -332,7 +354,15 @@ const WorkspacePage = () => {
               </div>
               {/* Quick action chips */}
               <div className="flex flex-wrap gap-1.5 mt-2">
-                {[
+                {(isEn ? [
+                  'Add more data and experimental details',
+                  'Switch to two-column comparison',
+                  'Switch to quad layout',
+                  'Add method flow steps',
+                  'Simplify to core points only',
+                  'Make more suitable for oral presentation',
+                  'Generate experiment flowchart',
+                ] : [
                   '补充更多数据和实验细节',
                   '改成双栏对比布局',
                   '改成四分框布局',
@@ -340,7 +370,7 @@ const WorkspacePage = () => {
                   '精简内容只保留核心',
                   '更适合口头讲解',
                   '生成实验流程图',
-                ].map(chip => (
+                ]).map(chip => (
                   <button
                     key={chip}
                     onClick={() => callSlideAI(chip)}
@@ -358,7 +388,7 @@ const WorkspacePage = () => {
           <div className="border-t border-border flex-shrink-0">
             <div className="flex items-center justify-between px-4 py-2">
               <button onClick={() => setNotesOpen(!notesOpen)} className="flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
-                <span>演讲注释</span>
+                <span>{isEn ? 'Speaker Notes' : '演讲注释'}</span>
                 {notesRefreshing && <Loader2 className="w-3 h-3 animate-spin text-primary" />}
                 {notesOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
               </button>
@@ -434,8 +464,8 @@ const WorkspacePage = () => {
               const newSlide: Slide = {
                 id: `s-${Date.now()}`,
                 order: slides.length,
-                title: '新页面',
-                contentBlocks: [{ id: `b-${Date.now()}`, type: 'point', content: '点击编辑内容' }],
+                title: isEn ? 'New Slide' : '新页面',
+                contentBlocks: [{ id: `b-${Date.now()}`, type: 'point', content: isEn ? 'Click to edit' : '点击编辑内容' }],
                 layout: 'title-points',
                 notes: { mainTalk: '', extraExplanation: '', transitionSentence: '', tone: 'natural' },
               };
@@ -446,7 +476,7 @@ const WorkspacePage = () => {
             className="w-full border-2 border-dashed border-border rounded-lg p-3 text-xs text-muted-foreground hover:border-primary/30 hover:text-foreground transition-colors flex items-center justify-center gap-1"
           >
             <Plus className="w-3.5 h-3.5" />
-            新增页面
+            {isEn ? 'Add Slide' : '新增页面'}
           </button>
         </aside>
       </div>
