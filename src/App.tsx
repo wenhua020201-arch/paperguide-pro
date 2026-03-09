@@ -9,6 +9,7 @@ import OutlinePage from "./pages/OutlinePage";
 import TemplatePage from "./pages/TemplatePage";
 import WorkspacePage from "./pages/WorkspacePage";
 import ExportPage from "./pages/ExportPage";
+import GeneratePage from "./pages/GeneratePage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -24,6 +25,7 @@ const App = () => (
           <Route path="/upload" element={<UploadPage />} />
           <Route path="/outline" element={<OutlinePage />} />
           <Route path="/template" element={<TemplatePage />} />
+          <Route path="/generate" element={<GeneratePage />} />
           <Route path="/workspace" element={<WorkspacePage />} />
           <Route path="/export" element={<ExportPage />} />
           <Route path="*" element={<NotFound />} />
