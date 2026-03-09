@@ -268,11 +268,26 @@ const WorkspacePage = () => {
           <h1 className="text-base font-display font-semibold text-foreground">{paperTitle}</h1>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => {
+            const newLang = language === 'zh' ? 'en' : 'zh';
+            setLanguage(newLang);
+            try {
+              const saved = localStorage.getItem('current_project');
+              if (saved) {
+                const data = JSON.parse(saved);
+                data.language = newLang;
+                localStorage.setItem('current_project', JSON.stringify(data));
+              }
+            } catch {}
+          }} className="gap-1.5">
+            <Languages className="w-3.5 h-3.5" />
+            <span className="text-xs font-medium">{isEn ? 'EN' : '中文'}</span>
+          </Button>
           <Button variant="ghost" size="sm" onClick={() => setPdfOpen(!pdfOpen)}>
             <FileTextIcon className="w-4 h-4" />
-            <span className="ml-1 text-xs">原文</span>
+            <span className="ml-1 text-xs">{isEn ? 'Paper' : '原文'}</span>
           </Button>
-          <Button variant="outline" size="sm" onClick={() => navigate('/export')}>导出</Button>
+          <Button variant="outline" size="sm" onClick={() => navigate('/export')}>{isEn ? 'Export' : '导出'}</Button>
         </div>
       </header>
 
