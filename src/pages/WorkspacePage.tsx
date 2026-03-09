@@ -41,7 +41,7 @@ const WorkspacePage = () => {
   const [language, setLanguage] = useState<'zh' | 'en'>('zh');
   const hasGenerated = useRef(false);
   const currentSlide = slides[currentSlideIndex];
-  const currentSlide = slides[currentSlideIndex];
+  const isEn = language === 'en';
 
   useEffect(() => {
     if (hasGenerated.current) return;
