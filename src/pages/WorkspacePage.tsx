@@ -306,7 +306,7 @@ const WorkspacePage = () => {
               <div className="w-[420px] h-full flex flex-col">
                 <div className="px-3 py-2 border-b border-border flex items-center gap-2">
                   <FileTextIcon className="w-3.5 h-3.5 text-muted-foreground" />
-                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">论文原文</span>
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{isEn ? 'Original Paper' : '论文原文'}</span>
                 </div>
                 <div className="flex-1 overflow-hidden">
                   <PdfViewer />
