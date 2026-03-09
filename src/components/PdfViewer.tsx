@@ -93,7 +93,7 @@ const PdfViewer = ({ storageKey = 'current_pdf', className = '' }: PdfViewerProp
       await task.promise;
       setRenderedPages(prev => new Set(prev).add(pageNum));
     } catch (e: any) {
-      if (e?.name !== 'RenderingCancelled') {
+      if (e?.name !== 'RenderingCancelled' && e?.name !== 'RenderingCancelledException') {
         console.error('PDF render error:', e);
       }
     }
