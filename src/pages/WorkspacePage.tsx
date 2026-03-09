@@ -388,7 +388,7 @@ const WorkspacePage = () => {
           <div className="border-t border-border flex-shrink-0">
             <div className="flex items-center justify-between px-4 py-2">
               <button onClick={() => setNotesOpen(!notesOpen)} className="flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
-                <span>演讲注释</span>
+                <span>{isEn ? 'Speaker Notes' : '演讲注释'}</span>
                 {notesRefreshing && <Loader2 className="w-3 h-3 animate-spin text-primary" />}
                 {notesOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
               </button>
