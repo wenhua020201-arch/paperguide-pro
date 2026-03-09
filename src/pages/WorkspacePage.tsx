@@ -476,7 +476,7 @@ const WorkspacePage = () => {
             className="w-full border-2 border-dashed border-border rounded-lg p-3 text-xs text-muted-foreground hover:border-primary/30 hover:text-foreground transition-colors flex items-center justify-center gap-1"
           >
             <Plus className="w-3.5 h-3.5" />
-            新增页面
+            {isEn ? 'Add Slide' : '新增页面'}
           </button>
         </aside>
       </div>
