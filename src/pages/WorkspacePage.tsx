@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, ChevronUp, ChevronDown, Plus, MoreHorizontal, Copy, RefreshCw,
   PanelLeftClose, PanelLeftOpen, GripVertical, Send, Sparkles, Loader2,
-  FileText as FileTextIcon, LayoutGrid, Check, X, Pencil
+  FileText as FileTextIcon, LayoutGrid, Check, X, Pencil, Languages
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';

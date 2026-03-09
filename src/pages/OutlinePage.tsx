@@ -4,7 +4,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, ChevronRight, ChevronDown, GripVertical, MoreHorizontal,
   Plus, Trash2, ArrowUp, ArrowDown, ChevronsUp, ChevronsDown,
-  FileText as FileTextIcon, Check, X, PanelLeftClose, PanelLeftOpen
+  FileText as FileTextIcon, Check, X, PanelLeftClose, PanelLeftOpen,
+  Languages
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,6 +23,16 @@ const OutlinePage = () => {
   const [paper, setPaper] = useState<PaperMeta>(MOCK_PAPER);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [pdfOpen, setPdfOpen] = useState(true);
+  const [language, setLanguage] = useState<'zh' | 'en'>(() => {
+    try {
+      const saved = localStorage.getItem('current_project');
+      if (saved) {
+        const data = JSON.parse(saved);
+        return data.language || 'zh';
+      }
+    } catch {}
+    return 'zh';
+  });
 
   useEffect(() => {
     try {
@@ -30,6 +41,7 @@ const OutlinePage = () => {
         const data = JSON.parse(saved);
         if (data.outline) setOutline(data.outline);
         if (data.paper) setPaper(data.paper);
+        if (data.language) setLanguage(data.language);
       }
     } catch {};
   }, []);
@@ -71,8 +83,8 @@ const OutlinePage = () => {
       id: `n-${Date.now()}`,
       parentId,
       level: 0,
-      title: '新节点',
-      description: '点击编辑说明',
+      title: language === 'en' ? 'New Node' : '新节点',
+      description: language === 'en' ? 'Click to edit' : '点击编辑说明',
       order: 0,
       children: [],
     };
@@ -142,6 +154,20 @@ const OutlinePage = () => {
     dragNodeId.current = null;
   };
 
+  // Toggle language and persist
+  const toggleLanguage = () => {
+    const newLang = language === 'zh' ? 'en' : 'zh';
+    setLanguage(newLang);
+    try {
+      const saved = localStorage.getItem('current_project');
+      if (saved) {
+        const data = JSON.parse(saved);
+        data.language = newLang;
+        localStorage.setItem('current_project', JSON.stringify(data));
+      }
+    } catch {}
+  };
+
   // Persist outline changes
   useEffect(() => {
     try {
@@ -150,30 +176,40 @@ const OutlinePage = () => {
         const data = JSON.parse(saved);
         data.outline = outline;
         data.step = 'outline';
+        data.language = language;
         localStorage.setItem('current_project', JSON.stringify(data));
       }
     } catch {}
-  }, [outline]);
+  }, [outline, language]);
+
+  const isEn = language === 'en';
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <header className="border-b border-border px-4 py-3 flex items-center justify-between">
+    <div className="h-screen bg-background flex flex-col">
+      <header className="border-b border-border px-4 py-3 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="icon" onClick={() => navigate('/upload')}>
             <ArrowLeft className="w-4 h-4" />
           </Button>
-          <h1 className="text-lg font-display font-semibold text-foreground">导读大纲</h1>
+          <h1 className="text-lg font-display font-semibold text-foreground">
+            {isEn ? 'Reading Outline' : '导读大纲'}
+          </h1>
         </div>
         <div className="flex items-center gap-2">
+          {/* Language toggle */}
+          <Button variant="outline" size="sm" onClick={toggleLanguage} className="gap-1.5">
+            <Languages className="w-3.5 h-3.5" />
+            <span className="text-xs font-medium">{isEn ? 'EN' : '中文'}</span>
+          </Button>
           <Button variant="ghost" size="sm" onClick={() => setPdfOpen(!pdfOpen)}>
             {pdfOpen ? <PanelLeftClose className="w-4 h-4" /> : <PanelLeftOpen className="w-4 h-4" />}
-            <span className="ml-1 text-xs">原文</span>
+            <span className="ml-1 text-xs">{isEn ? 'Paper' : '原文'}</span>
           </Button>
         </div>
       </header>
 
       <div className="flex-1 flex overflow-hidden">
-        {/* Left - PDF viewer */}
+        {/* Left - PDF viewer (independent scroll) */}
         <AnimatePresence initial={false}>
           {pdfOpen && (
             <motion.aside
@@ -184,9 +220,11 @@ const OutlinePage = () => {
               className="border-r border-border overflow-hidden flex-shrink-0"
             >
               <div className="w-[420px] h-full flex flex-col">
-                <div className="px-3 py-2 border-b border-border flex items-center gap-2">
+                <div className="px-3 py-2 border-b border-border flex items-center gap-2 flex-shrink-0">
                   <FileTextIcon className="w-3.5 h-3.5 text-muted-foreground" />
-                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">论文原文</span>
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                    {isEn ? 'Original Paper' : '论文原文'}
+                  </span>
                 </div>
                 <div className="flex-1 overflow-hidden">
                   <PdfViewer />
@@ -196,7 +234,7 @@ const OutlinePage = () => {
           )}
         </AnimatePresence>
 
-        {/* Main outline editor */}
+        {/* Center - Outline editor (independent scroll) */}
         <main className="flex-1 overflow-y-auto p-6">
           <div className="max-w-3xl mx-auto">
             <TreeNodeComponent
@@ -212,16 +250,17 @@ const OutlinePage = () => {
               onDragStart={handleDragStart}
               onDrop={handleDrop}
               isRoot
+              language={language}
             />
           </div>
         </main>
 
-        {/* Right panel - node details */}
+        {/* Right panel - node details (independent scroll) */}
         <aside className="w-72 border-l border-border p-4 overflow-y-auto hidden xl:block">
           {selectedNode ? (
             <motion.div key={selectedNode.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
               <div>
-                <p className="text-xs text-muted-foreground mb-1">节点标题</p>
+                <p className="text-xs text-muted-foreground mb-1">{isEn ? 'Node Title' : '节点标题'}</p>
                 <Input
                   value={selectedNode.title}
                   onChange={(e) => updateNode(selectedNode.id, { title: e.target.value })}
@@ -229,7 +268,7 @@ const OutlinePage = () => {
                 />
               </div>
               <div>
-                <p className="text-xs text-muted-foreground mb-1">说明</p>
+                <p className="text-xs text-muted-foreground mb-1">{isEn ? 'Description' : '说明'}</p>
                 <Textarea
                   value={selectedNode.description}
                   onChange={(e) => updateNode(selectedNode.id, { description: e.target.value })}
@@ -237,31 +276,33 @@ const OutlinePage = () => {
                 />
               </div>
               <div>
-                <p className="text-xs text-muted-foreground mb-1">层级</p>
-                <p className="text-sm text-foreground">第 {selectedNode.level} 级</p>
+                <p className="text-xs text-muted-foreground mb-1">{isEn ? 'Level' : '层级'}</p>
+                <p className="text-sm text-foreground">{isEn ? `Level ${selectedNode.level}` : `第 ${selectedNode.level} 级`}</p>
               </div>
               <div>
-                <p className="text-xs text-muted-foreground mb-1">子节点数</p>
+                <p className="text-xs text-muted-foreground mb-1">{isEn ? 'Children' : '子节点数'}</p>
                 <p className="text-sm text-foreground">{selectedNode.children.length}</p>
               </div>
               <div className="space-y-2 pt-2 border-t border-border">
                 <Button size="sm" variant="outline" className="w-full justify-start" onClick={() => addChild(selectedNode.id)}>
-                  <Plus className="w-3.5 h-3.5 mr-2" />新增子节点
+                  <Plus className="w-3.5 h-3.5 mr-2" />{isEn ? 'Add Child' : '新增子节点'}
                 </Button>
                 <Button size="sm" variant="outline" className="w-full justify-start text-destructive" onClick={() => deleteNode(selectedNode.id)}>
-                  <Trash2 className="w-3.5 h-3.5 mr-2" />删除节点
+                  <Trash2 className="w-3.5 h-3.5 mr-2" />{isEn ? 'Delete' : '删除节点'}
                 </Button>
               </div>
             </motion.div>
           ) : (
-            <div className="text-sm text-muted-foreground text-center mt-12">选择一个节点查看详情</div>
+            <div className="text-sm text-muted-foreground text-center mt-12">
+              {isEn ? 'Select a node to view details' : '选择一个节点查看详情'}
+            </div>
           )}
         </aside>
       </div>
 
-      <div className="border-t border-border px-6 py-4 flex justify-end">
+      <div className="border-t border-border px-6 py-4 flex justify-end flex-shrink-0">
         <Button onClick={() => navigate('/template')} size="lg">
-          选择汇报模板
+          {isEn ? 'Choose Template' : '选择汇报模板'}
           <ChevronRight className="w-4 h-4 ml-1" />
         </Button>
       </div>
@@ -270,7 +311,7 @@ const OutlinePage = () => {
 };
 
 function TreeNodeComponent({
-  node, selectedId, onSelect, onToggle, onDelete, onAddChild, onUpdate, onMove, onMoveToEdge, onDragStart, onDrop, isRoot, depth = 0
+  node, selectedId, onSelect, onToggle, onDelete, onAddChild, onUpdate, onMove, onMoveToEdge, onDragStart, onDrop, isRoot, depth = 0, language = 'zh'
 }: {
   node: OutlineNode;
   selectedId: string | null;
@@ -285,6 +326,7 @@ function TreeNodeComponent({
   onDrop: (targetNodeId: string, targetParentId: string | null) => void;
   isRoot?: boolean;
   depth?: number;
+  language?: 'zh' | 'en';
 }) {
   const hasChildren = node.children.length > 0;
   const isSelected = selectedId === node.id;
@@ -293,6 +335,7 @@ function TreeNodeComponent({
   const [editingDesc, setEditingDesc] = useState(false);
   const [editDesc, setEditDesc] = useState(node.description);
   const [dragOver, setDragOver] = useState(false);
+  const isEn = language === 'en';
 
   const commitTitle = () => {
     if (editTitle.trim()) onUpdate(node.id, { title: editTitle.trim() });
@@ -385,29 +428,29 @@ function TreeNodeComponent({
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-40">
             <DropdownMenuItem onClick={() => { setEditTitle(node.title); setEditingTitle(true); }}>
-              ✏️ 编辑标题
+              ✏️ {isEn ? 'Edit Title' : '编辑标题'}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => { setEditDesc(node.description); setEditingDesc(true); }}>
-              ✏️ 编辑说明
+              ✏️ {isEn ? 'Edit Desc' : '编辑说明'}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => onAddChild(node.id)}>
-              <Plus className="w-3.5 h-3.5 mr-2" />新增子节点
+              <Plus className="w-3.5 h-3.5 mr-2" />{isEn ? 'Add Child' : '新增子节点'}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => onMoveToEdge(node.id, 'top')}>
-              <ChevronsUp className="w-3.5 h-3.5 mr-2" />置顶
+              <ChevronsUp className="w-3.5 h-3.5 mr-2" />{isEn ? 'Move to Top' : '置顶'}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => onMove(node.parentId, node.id, 'up')}>
-              <ArrowUp className="w-3.5 h-3.5 mr-2" />上移
+              <ArrowUp className="w-3.5 h-3.5 mr-2" />{isEn ? 'Move Up' : '上移'}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => onMove(node.parentId, node.id, 'down')}>
-              <ArrowDown className="w-3.5 h-3.5 mr-2" />下移
+              <ArrowDown className="w-3.5 h-3.5 mr-2" />{isEn ? 'Move Down' : '下移'}
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => onMoveToEdge(node.id, 'bottom')}>
-              <ChevronsDown className="w-3.5 h-3.5 mr-2" />置底
+              <ChevronsDown className="w-3.5 h-3.5 mr-2" />{isEn ? 'Move to Bottom' : '置底'}
             </DropdownMenuItem>
             {!isRoot && (
               <DropdownMenuItem className="text-destructive" onClick={() => onDelete(node.id)}>
-                <Trash2 className="w-3.5 h-3.5 mr-2" />删除
+                <Trash2 className="w-3.5 h-3.5 mr-2" />{isEn ? 'Delete' : '删除'}
               </DropdownMenuItem>
             )}
           </DropdownMenuContent>
@@ -431,6 +474,7 @@ function TreeNodeComponent({
               onDragStart={onDragStart}
               onDrop={onDrop}
               depth={depth + 1}
+              language={language}
             />
           ))}
         </div>
