@@ -252,8 +252,8 @@ const WorkspacePage = () => {
       <div className="h-screen bg-background flex flex-col items-center justify-center gap-4">
         <Loader2 className="w-8 h-8 text-primary animate-spin" />
         <div className="text-center">
-          <p className="text-lg font-display font-semibold text-foreground mb-1">正在生成导读工作台…</p>
-          <p className="text-sm text-muted-foreground">AI 正在根据大纲生成 PPT 和演讲注释</p>
+          <p className="text-lg font-display font-semibold text-foreground mb-1">{isEn ? 'Generating workspace…' : '正在生成导读工作台…'}</p>
+          <p className="text-sm text-muted-foreground">{isEn ? 'AI is generating slides and speaker notes from your outline' : 'AI 正在根据大纲生成 PPT 和演讲注释'}</p>
         </div>
       </div>
     );
