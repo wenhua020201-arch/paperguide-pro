@@ -95,6 +95,7 @@ const WorkspacePage = () => {
           paper: data.paper,
           template: data.template || 'seminar',
           density: data.density || 'standard',
+          language: data.language || 'zh',
         },
       });
       if (error) throw error;
