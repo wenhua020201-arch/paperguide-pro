@@ -38,7 +38,9 @@ const WorkspacePage = () => {
   const [aiLoading, setAiLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [notesRefreshing, setNotesRefreshing] = useState(false);
+  const [language, setLanguage] = useState<'zh' | 'en'>('zh');
   const hasGenerated = useRef(false);
+  const currentSlide = slides[currentSlideIndex];
   const currentSlide = slides[currentSlideIndex];
 
   useEffect(() => {
