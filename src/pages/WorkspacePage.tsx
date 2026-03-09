@@ -339,7 +339,10 @@ const WorkspacePage = () => {
                 <Textarea
                   value={promptText}
                   onChange={(e) => setPromptText(e.target.value)}
-                  placeholder={`对第 ${currentSlideIndex + 1} 页提出修改意见，如"增加更多实验数据对比"、"改成四分框布局"、"生成实验流程图"…`}
+                  placeholder={isEn
+                    ? `Suggest edits for slide ${currentSlideIndex + 1}, e.g. "add more experimental data", "switch to quad layout"…`
+                    : `对第 ${currentSlideIndex + 1} 页提出修改意见，如"增加更多实验数据对比"、"改成四分框布局"…`
+                  }
                   className="min-h-[36px] max-h-[80px] text-sm border-0 shadow-none resize-none focus-visible:ring-0 p-1"
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handlePromptSubmit(); }
@@ -351,7 +354,15 @@ const WorkspacePage = () => {
               </div>
               {/* Quick action chips */}
               <div className="flex flex-wrap gap-1.5 mt-2">
-                {[
+                {(isEn ? [
+                  'Add more data and experimental details',
+                  'Switch to two-column comparison',
+                  'Switch to quad layout',
+                  'Add method flow steps',
+                  'Simplify to core points only',
+                  'Make more suitable for oral presentation',
+                  'Generate experiment flowchart',
+                ] : [
                   '补充更多数据和实验细节',
                   '改成双栏对比布局',
                   '改成四分框布局',
@@ -359,7 +370,7 @@ const WorkspacePage = () => {
                   '精简内容只保留核心',
                   '更适合口头讲解',
                   '生成实验流程图',
-                ].map(chip => (
+                ]).map(chip => (
                   <button
                     key={chip}
                     onClick={() => callSlideAI(chip)}
