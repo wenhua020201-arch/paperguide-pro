@@ -464,8 +464,8 @@ const WorkspacePage = () => {
               const newSlide: Slide = {
                 id: `s-${Date.now()}`,
                 order: slides.length,
-                title: '新页面',
-                contentBlocks: [{ id: `b-${Date.now()}`, type: 'point', content: '点击编辑内容' }],
+                title: isEn ? 'New Slide' : '新页面',
+                contentBlocks: [{ id: `b-${Date.now()}`, type: 'point', content: isEn ? 'Click to edit' : '点击编辑内容' }],
                 layout: 'title-points',
                 notes: { mainTalk: '', extraExplanation: '', transitionSentence: '', tone: 'natural' },
               };
