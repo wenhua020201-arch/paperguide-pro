@@ -229,7 +229,7 @@ const TemplatePage = () => {
               }
             }
           } catch {}
-          navigate('/workspace');
+          navigate('/generate');
         }}>
           生成导读工作台
           <ChevronRight className="w-4 h-4 ml-1" />

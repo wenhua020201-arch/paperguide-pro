@@ -34,9 +34,9 @@ const statusIcon = (status: string) => {
 
 const statusBadge = (status: string) => {
   const variants: Record<string, string> = {
-    completed: 'bg-green-100 text-green-800',
-    running: 'bg-blue-100 text-blue-800',
-    failed: 'bg-red-100 text-red-800',
+  completed: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
+    running: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
+    failed: 'bg-destructive/10 text-destructive',
     pending: 'bg-muted text-muted-foreground',
   };
   return <Badge className={variants[status] || variants.pending}>{status}</Badge>;
