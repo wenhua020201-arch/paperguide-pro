@@ -219,7 +219,7 @@ const OutlinePage = () => {
               onDragStart={handleDragStart}
               onDrop={handleDrop}
               isRoot
-              language={language}
+              language="zh"
             />
           </div>
         </main>
