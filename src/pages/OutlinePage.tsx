@@ -271,7 +271,7 @@ const OutlinePage = () => {
 
       <div className="border-t border-border px-6 py-4 flex justify-end flex-shrink-0">
         <Button onClick={() => navigate('/template')} size="lg">
-          {isEn ? 'Choose Template' : '选择汇报模板'}
+          {'选择汇报模板'}
           <ChevronRight className="w-4 h-4 ml-1" />
         </Button>
       </div>
