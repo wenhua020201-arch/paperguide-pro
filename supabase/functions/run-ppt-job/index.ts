@@ -394,43 +394,68 @@ async function planSlides(
   const style = job.selected_template || "seminar";
   const styleDesc = TEMPLATE_DESC[style] || TEMPLATE_DESC.seminar;
 
+  // Aggregate visual patterns from section summaries for reference
+  const patternStats: Record<string, number> = {};
+  for (const s of sectionSummaries?.sections || []) {
+    const p = s.visualPattern || "bullets";
+    patternStats[p] = (patternStats[p] || 0) + 1;
+  }
+
   const systemPrompt = `你是 PPT 结构规划专家。你的任务是根据展示单元，规划整套 PPT 的骨架结构。
 
 ## 你的身份
 - PPT 结构架构师
-- 决定"这套PPT有哪些页、每页什么作用、什么布局"
+- 决定"这套PPT有哪些页、每页什么作用、什么布局、什么内容组织方式"
 
 ## 当前汇报风格
 ${styleDesc}
 
-## 可用布局类型
-- cover：封面页（仅第一页）
-- agenda：目录/议程页
-- title-bullets：标题+要点列表（⚠️ 最多占总页数的30%！）
-- two-column：双栏对比/并列
-- comparison：对比分析
-- timeline：时间线/演进
-- data-card：数据/发现卡片
+## 可用布局类型及其内容组织规则
+- cover：封面页（仅第一页）→ 论文标题+作者+日期
+- agenda：目录/议程页 → 提纲挈领展示主线
+- title-bullets：标题+要点列表（⚠️ 最多占总页数的25%！） → 仅用于简单的要点罗列
+- two-column：双栏对比/并列 → 适合对比两种方法、理论与实践、问题与方案
+- comparison：对比分析 → 适合量化对比、多方案PK、结果对比
+- timeline：时间线/演进 → 适合方法步骤、研究流程、发展历程
+- data-card：数据/发现卡片 → 适合核心发现、关键数值、实验结果
 - summary：总结/展望页（仅最后1-2页）
 
-## 规则
-1. 第一页必须是 cover
-2. 最后一页必须是 summary
-3. title-bullets 不能超过总页数的 30%
-4. 至少使用 5 种不同布局
-5. 规划应形成清晰的讲述主线，不是机械照搬论文目录
-6. 每页必须有明确的 purpose（这页为什么存在）和 rationale（为什么选这个布局）
-7. coveredUnits 必须引用展示单元的 unitId
-8. 总页数应接近目标页数（${targetCount}页）
+## 核心规则
+1. 第一页必须是 cover，最后一页必须是 summary
+2. title-bullets 不能超过总页数的 25%
+3. 至少使用 5 种不同布局
+4. 布局选择必须基于章节摘要中的 visualPattern 和 coreRelation，不能随意指定
+5. 总页数应接近目标页数（${targetCount}页）
 
-## 输出规则
+## 每页必须输出的字段
 - slideNo：从 1 开始
 - title：页面标题，最多15字
 - role：cover/agenda/content/summary
 - coveredUnits：该页覆盖的展示单元ID列表
 - layout：从上述布局中选择
-- purpose：该页的讲述目标（1句话）
-- rationale：为什么选择这个布局（1句话）`;
+- purpose：该页的讲述目标
+- rationale：为什么选择这个布局
+- pageGoal：该页的核心传达目标（1句话，如"让听众理解实验设计的三个阶段"）
+- primaryMessage：该页最重要的信息（1句话）
+- secondaryMessage：该页次要的补充信息（1句话）
+- visualPriority：该页内容优先以什么方式呈现
+  - text：文字描述为主
+  - data：数值/指标为主
+  - structure：结构/流程为主
+  - comparison：对比为主
+- contentStructure：内容组织方式
+  - linear：线性叙述（按顺序展开）
+  - grouped：分组展示（几个并列的块）
+  - contrasted：对比展示（A vs B）
+  - layered：层级展示（总-分或分-总）
+  - highlighted：聚焦高亮（一个核心 + 辅助说明）
+- groupingLogic：内容分组/组织的具体说明（1-2句话，如"按3个实验条件分组"或"左栏方法优点，右栏局限"）
+
+## 质量标准
+- 不同 layout 的页面必须有不同的 contentStructure，避免所有页面都是 linear
+- data-card 页面的 visualPriority 必须是 data
+- comparison/two-column 页面的 contentStructure 必须是 contrasted 或 grouped
+- 规划应形成清晰的讲述主线，不是机械照搬论文目录`;
 
   const userPrompt = `论文标题：${paper.title}
 目标页数：${targetCount}
@@ -439,10 +464,16 @@ ${styleDesc}
 展示单元：
 ${JSON.stringify(presentationUnits.units, null, 2)}
 
-章节摘要（供参考）：
-${JSON.stringify(sectionSummaries.sections.slice(0, 20), null, 2)}
+章节摘要统计的 visualPattern 分布：${JSON.stringify(patternStats)}
 
-请规划约${targetCount}页PPT的结构骨架。记住：先形成讲述主线，再分配布局。`;
+章节摘要（含结构信息）：
+${JSON.stringify(sectionSummaries.sections.slice(0, 25), null, 2)}
+
+请规划约${targetCount}页PPT的结构骨架。
+重要提醒：
+1. 先形成讲述主线，再分配布局
+2. 必须参考章节摘要中的 coreRelation 和 visualPattern 来选择布局
+3. 每页必须输出 pageGoal、primaryMessage、secondaryMessage、visualPriority、contentStructure、groupingLogic`;
 
   const toolDef = {
     name: "output_slide_plan",
@@ -469,27 +500,29 @@ ${JSON.stringify(sectionSummaries.sections.slice(0, 20), null, 2)}
               layout: {
                 type: "string",
                 enum: [
-                  "cover",
-                  "agenda",
-                  "title-bullets",
-                  "two-column",
-                  "comparison",
-                  "timeline",
-                  "data-card",
-                  "summary",
+                  "cover", "agenda", "title-bullets", "two-column",
+                  "comparison", "timeline", "data-card", "summary",
                 ],
               },
               purpose: { type: "string" },
               rationale: { type: "string" },
+              pageGoal: { type: "string", description: "Core communication goal of this page" },
+              primaryMessage: { type: "string", description: "Most important message" },
+              secondaryMessage: { type: "string", description: "Secondary supporting message" },
+              visualPriority: {
+                type: "string",
+                enum: ["text", "data", "structure", "comparison"],
+              },
+              contentStructure: {
+                type: "string",
+                enum: ["linear", "grouped", "contrasted", "layered", "highlighted"],
+              },
+              groupingLogic: { type: "string", description: "How content is grouped/organized on this page" },
             },
             required: [
-              "slideNo",
-              "title",
-              "role",
-              "coveredUnits",
-              "layout",
-              "purpose",
-              "rationale",
+              "slideNo", "title", "role", "coveredUnits", "layout",
+              "purpose", "rationale", "pageGoal", "primaryMessage",
+              "secondaryMessage", "visualPriority", "contentStructure", "groupingLogic",
             ],
           },
         },
