@@ -237,7 +237,7 @@ const OutlinePage = () => {
                 />
               </div>
               <div>
-                <p className="text-xs text-muted-foreground mb-1">{isEn ? 'Description' : '说明'}</p>
+                <p className="text-xs text-muted-foreground mb-1">{'说明'}</p>
                 <Textarea
                   value={selectedNode.description}
                   onChange={(e) => updateNode(selectedNode.id, { description: e.target.value })}
