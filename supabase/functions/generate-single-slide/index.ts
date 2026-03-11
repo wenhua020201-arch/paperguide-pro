@@ -63,15 +63,11 @@ serve(async (req) => {
 
   try {
     const { jobId, slideNo, mode, slideContent } = await req.json();
-    // mode: 'regenerate' | 'refresh-notes'
 
     if (!jobId || !slideNo) {
       return new Response(
         JSON.stringify({ error: "Missing jobId or slideNo" }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -80,7 +76,6 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Load job
     const { data: job } = await sb
       .from("ppt_jobs")
       .select("*")
@@ -88,7 +83,6 @@ serve(async (req) => {
       .single();
     if (!job) throw new Error("Job not found");
 
-    // Load step outputs for context
     const { data: steps } = await sb
       .from("ppt_job_steps")
       .select("step_name, step_output")
@@ -127,8 +121,13 @@ serve(async (req) => {
       (s: any) => relevantSectionIds.has(s.id)
     );
 
+    // Aggregate structure hints
+    const aggregatedKeyNumbers = relevantSummaries.flatMap((s: any) => s.keyNumbers || []);
+    const dominantRelation = relevantSummaries.length > 0 ? relevantSummaries[0].coreRelation : "none";
+    const dominantPattern = relevantSummaries.length > 0 ? relevantSummaries[0].visualPattern : "bullets";
+    const hints = relevantSummaries.map((s: any) => s.presentationHint).filter(Boolean);
+
     if (mode === "refresh-notes") {
-      // Only regenerate notes based on current slide content
       const systemPrompt = `你是学术导读PPT演讲注释专家。用户已经手动编辑了某一页PPT内容，你需要根据更新后的内容重新生成演讲注释。
 
 ## 规则
@@ -143,6 +142,10 @@ serve(async (req) => {
 标题：${slideContent?.title || plan?.title || ""}
 布局：${slideContent?.layout || plan?.layout || ""}
 内容块：${JSON.stringify(slideContent?.contentBlocks || [])}
+
+页面结构信息：
+pageGoal：${plan?.pageGoal || "无"}
+primaryMessage：${plan?.primaryMessage || "无"}
 
 下一页：${nextPlan ? nextPlan.title : "无（最后一页）"}
 
@@ -164,11 +167,7 @@ serve(async (req) => {
                   extraExplanation: { type: "string" },
                   transitionSentence: { type: "string" },
                 },
-                required: [
-                  "mainTalk",
-                  "extraExplanation",
-                  "transitionSentence",
-                ],
+                required: ["mainTalk", "extraExplanation", "transitionSentence"],
               },
             },
             required: ["notes"],
@@ -182,37 +181,66 @@ serve(async (req) => {
       });
     }
 
-    // mode === 'regenerate': full slide regeneration with context
+    // mode === 'regenerate'
     const systemPrompt = `你是学术导读PPT内容撰写专家。你正在重新生成一页PPT内容。
 
 ## 汇报风格
 ${styleDesc}
 
+## ❗ 核心规则：内容组织必须服从 contentStructure 和 groupingLogic
+
+### contentStructure → 内容块组织方式
+- **linear**：按逻辑顺序排列 point 块，用 subpoint 补充细节
+- **grouped**：用 heading 块做分组标题，每组下 2-3 个 point/finding 块
+- **contrasted**：用 heading 块标示对比维度，两侧各用 point/finding 展示
+- **layered**：先用 summary/text 给总论，再用 point/finding 展开分论
+- **highlighted**：1-2 个 finding 块做核心高亮，辅以 point/subpoint 做支撑说明
+
+### visualPriority → 内容重点
+- **text**：以文字描述为主
+- **data**：以 finding 块突出数据和指标
+- **structure**：用 heading 分区 + point/subpoint 展示层次
+- **comparison**：用 heading 标示对比项，finding/point 展示差异
+
 ## 内容块类型
 point, subpoint, finding, summary, text, heading
+
+## 布局与内容块匹配规则
+- cover：2-3个text块
+- title-bullets：4-6个point块
+- two-column：heading + point/finding 交替（至少2个heading做栏分隔）
+- comparison：heading + finding 交替（至少2个heading标示对比项）
+- timeline：point块按时间排列，可用heading标示阶段
+- data-card：3-5个finding块为主
+- summary：3-5个summary块
 
 ## 质量要求
 - 标题最多15字
 - 每个要点15-30字完整句子
 - 每页4-8个内容块
-- 包含具体数据和对比
-- Notes 不是复读内容，要提供讲解策略
-
-## 布局匹配
-- cover：2-3个text块
-- title-bullets：4-6个point块
-- two-column：6-8个块
-- comparison：6-8个块
-- timeline：4-6个块
-- data-card：3-5个finding块
-- summary：3-5个summary块`;
+- 如果有关键数据必须用 finding 块体现
+- Notes 不是复读内容，要提供讲解策略`;
 
     const userPrompt = `论文标题：${paper?.title || ""}
 汇报风格：${style}
 重新生成第 ${slideNo} 页
 
-当前页规划：
+═══ 当前页规划 ═══
 ${plan ? JSON.stringify(plan) : "无"}
+
+═══ 页面结构指令（必须遵守）═══
+pageGoal：${plan?.pageGoal || "无"}
+primaryMessage：${plan?.primaryMessage || "无"}
+secondaryMessage：${plan?.secondaryMessage || "无"}
+visualPriority：${plan?.visualPriority || "text"}
+contentStructure：${plan?.contentStructure || "linear"}
+groupingLogic：${plan?.groupingLogic || "无"}
+
+═══ 来自摘要层的结构线索 ═══
+关键数据：${aggregatedKeyNumbers.length > 0 ? aggregatedKeyNumbers.join("；") : "无"}
+核心关系类型：${dominantRelation}
+推荐视觉模式：${dominantPattern}
+展示建议：${hints.length > 0 ? hints.join("；") : "无"}
 
 前一页：${prevPlan ? `${prevPlan.title}（${prevPlan.purpose}）` : "无"}
 下一页：${nextPlan ? `${nextPlan.title}（${nextPlan.purpose}）` : "无"}
@@ -220,7 +248,8 @@ ${plan ? JSON.stringify(plan) : "无"}
 相关展示单元：${JSON.stringify(relevantUnits)}
 相关章节摘要：${JSON.stringify(relevantSummaries)}
 
-请重新生成这一页的完整内容。`;
+请重新生成这一页的完整内容。
+重要：内容组织必须服从 contentStructure="${plan?.contentStructure || "linear"}"，不要退化成纯列表。`;
 
     const result = await callAI(
       systemPrompt,
@@ -235,33 +264,14 @@ ${plan ? JSON.stringify(plan) : "无"}
             title: { type: "string" },
             layout: {
               type: "string",
-              enum: [
-                "cover",
-                "agenda",
-                "title-bullets",
-                "two-column",
-                "comparison",
-                "timeline",
-                "data-card",
-                "summary",
-              ],
+              enum: ["cover", "agenda", "title-bullets", "two-column", "comparison", "timeline", "data-card", "summary"],
             },
             contentBlocks: {
               type: "array",
               items: {
                 type: "object",
                 properties: {
-                  type: {
-                    type: "string",
-                    enum: [
-                      "point",
-                      "subpoint",
-                      "finding",
-                      "summary",
-                      "text",
-                      "heading",
-                    ],
-                  },
+                  type: { type: "string", enum: ["point", "subpoint", "finding", "summary", "text", "heading"] },
                   text: { type: "string" },
                 },
                 required: ["type", "text"],
@@ -274,11 +284,7 @@ ${plan ? JSON.stringify(plan) : "无"}
                 extraExplanation: { type: "string" },
                 transitionSentence: { type: "string" },
               },
-              required: [
-                "mainTalk",
-                "extraExplanation",
-                "transitionSentence",
-              ],
+              required: ["mainTalk", "extraExplanation", "transitionSentence"],
             },
           },
           required: ["slideNo", "title", "layout", "contentBlocks", "notes"],
@@ -295,13 +301,8 @@ ${plan ? JSON.stringify(plan) : "无"}
   } catch (e) {
     console.error("generate-single-slide error:", e);
     return new Response(
-      JSON.stringify({
-        error: e instanceof Error ? e.message : "Unknown error",
-      }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });
