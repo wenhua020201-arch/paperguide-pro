@@ -254,7 +254,7 @@ const OutlinePage = () => {
               </div>
               <div className="space-y-2 pt-2 border-t border-border">
                 <Button size="sm" variant="outline" className="w-full justify-start" onClick={() => addChild(selectedNode.id)}>
-                  <Plus className="w-3.5 h-3.5 mr-2" />{isEn ? 'Add Child' : '新增子节点'}
+                  <Plus className="w-3.5 h-3.5 mr-2" />{'新增子节点'}
                 </Button>
                 <Button size="sm" variant="outline" className="w-full justify-start text-destructive" onClick={() => deleteNode(selectedNode.id)}>
                   <Trash2 className="w-3.5 h-3.5 mr-2" />{isEn ? 'Delete' : '删除节点'}
