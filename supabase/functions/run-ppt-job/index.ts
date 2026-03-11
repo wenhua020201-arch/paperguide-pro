@@ -145,7 +145,7 @@ async function summarizeSections(job: any): Promise<any> {
   const { outline, paper } = job.input_payload;
   const terminalNodes = flattenOutline(outline);
 
-  const systemPrompt = `你是学术论文分析专家。你的任务是为论文大纲中的每个末级章节生成结构化摘要。
+  const systemPrompt = `你是学术论文分析专家。你的任务是为论文大纲中的每个末级章节生成结构化摘要，并提取展示结构信息。
 
 ## 你的身份
 - 学术论文结构分析者
@@ -153,21 +153,42 @@ async function summarizeSections(job: any): Promise<any> {
 - 输出是后续 PPT 生成的"事实基础层"
 
 ## 任务边界
-- 只做摘要和关键点提取
+- 只做摘要、关键点提取和结构分析
 - 不要考虑汇报风格、听众偏好
 - 不要生成 PPT 内容
 
 ## 输出规则
 - summary：2-4句话，忠实概括该节核心内容
 - keyPoints：3-5个关键要点，每个15-30字
+- keyNumbers：该节中出现的关键数值/指标/统计量（如"准确率提升12%""样本量N=500""p<0.01"），无则空数组
+- coreRelation：该节内容的核心逻辑关系
+  - parallel：并列多个同级要素（如多个实验条件）
+  - sequence：有先后顺序（如流程步骤、时间演进）
+  - comparison：对比（如方法对比、结果对比）
+  - part-whole：整体与局部关系
+  - hierarchy：层级/分类关系
+  - cause-effect：因果关系
+  - none：无明显结构关系
+- visualPattern：最适合展示该节内容的视觉模式
+  - cards：适合并列展示的卡片
+  - process：流程/步骤图
+  - comparison：对比表格/双栏
+  - matrix：矩阵/网格
+  - timeline：时间线
+  - bullets：传统要点列表
+  - hierarchy：层级图
+  - single-highlight：聚焦单个核心发现
+- presentationHint：给后续PPT生成的建议（1句话，如"适合用对比表格展示两种方法差异"或"核心数据适合做高亮卡片"）
+- suggestedSplit：建议拆成几页PPT来展示（1-3页，信息量大的章节建议拆分）
 - nodeType：从枚举中选择最匹配的类型
-- slideWorthy：该节是否值得在PPT中展示（极短或纯引用列表设为false）
+- slideWorthy：该节是否值得在PPT中展示
 - importance：对理解论文主旨的重要程度
 
 ## 质量标准
 - 摘要必须忠实于原文
-- 不遗漏关键数据和结论
-- 保持学术严谨性`;
+- keyNumbers 必须提取具体数值，不要遗漏重要量化结果
+- coreRelation 和 visualPattern 要基于内容实际结构判断，不要都选 bullets
+- presentationHint 要具体有用，不要泛泛而谈`;
 
   const userPrompt = `论文标题：${paper.title}
 摘要：${paper.abstract || "无"}
@@ -179,7 +200,7 @@ ${serializeOutline(outline)}
 末级节点列表（共${terminalNodes.length}个）：
 ${terminalNodes.map((n) => `- [${n.id}] ${n.title}：${n.description}`).join("\n")}
 
-请为每个末级节点生成结构化摘要。`;
+请为每个末级节点生成结构化摘要，特别注意提取 keyNumbers、coreRelation、visualPattern 和 presentationHint。`;
 
   const toolDef = {
     name: "output_section_summaries",
@@ -200,21 +221,35 @@ ${terminalNodes.map((n) => `- [${n.id}] ${n.title}：${n.description}`).join("\n
                 items: { type: "string" },
                 description: "3-5 key points, each 15-30 chars",
               },
+              keyNumbers: {
+                type: "array",
+                items: { type: "string" },
+                description: "Key numbers/metrics from this section, e.g. '准确率92.3%', 'N=500'",
+              },
+              coreRelation: {
+                type: "string",
+                enum: ["parallel", "sequence", "comparison", "part-whole", "hierarchy", "cause-effect", "none"],
+                description: "Core logical relation of the content",
+              },
+              visualPattern: {
+                type: "string",
+                enum: ["cards", "process", "comparison", "matrix", "timeline", "bullets", "hierarchy", "single-highlight"],
+                description: "Best visual pattern for this content",
+              },
+              presentationHint: {
+                type: "string",
+                description: "1-sentence hint for how to present this on a slide",
+              },
+              suggestedSplit: {
+                type: "number",
+                description: "Suggested number of slides (1-3)",
+              },
               nodeType: {
                 type: "string",
                 enum: [
-                  "background",
-                  "research_question",
-                  "theory",
-                  "method",
-                  "data",
-                  "experiment",
-                  "result",
-                  "discussion",
-                  "limitation",
-                  "implication",
-                  "conclusion",
-                  "other",
+                  "background", "research_question", "theory", "method",
+                  "data", "experiment", "result", "discussion",
+                  "limitation", "implication", "conclusion", "other",
                 ],
               },
               slideWorthy: { type: "boolean" },
@@ -224,13 +259,9 @@ ${terminalNodes.map((n) => `- [${n.id}] ${n.title}：${n.description}`).join("\n
               },
             },
             required: [
-              "id",
-              "title",
-              "summary",
-              "keyPoints",
-              "nodeType",
-              "slideWorthy",
-              "importance",
+              "id", "title", "summary", "keyPoints", "keyNumbers",
+              "coreRelation", "visualPattern", "presentationHint", "suggestedSplit",
+              "nodeType", "slideWorthy", "importance",
             ],
           },
         },
