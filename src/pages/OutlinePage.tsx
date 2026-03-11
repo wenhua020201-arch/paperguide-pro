@@ -152,11 +152,10 @@ const OutlinePage = () => {
         const data = JSON.parse(saved);
         data.outline = outline;
         data.step = 'outline';
-        data.language = language;
         localStorage.setItem('current_project', JSON.stringify(data));
       }
     } catch {}
-  }, [outline, language]);
+  }, [outline]);
 
   const isEn = language === 'en';
 
