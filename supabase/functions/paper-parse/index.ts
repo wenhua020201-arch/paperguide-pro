@@ -9,34 +9,11 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { paperText, language = 'zh' } = await req.json();
+    const { paperText } = await req.json();
     const DASHSCOPE_API_KEY = Deno.env.get("DASHSCOPE_API_KEY");
     if (!DASHSCOPE_API_KEY) throw new Error("DASHSCOPE_API_KEY is not configured");
 
-    const isEn = language === 'en';
-
-    const systemPrompt = isEn
-      ? `You are an academic paper parsing assistant. The user provides full text of a paper. Extract structured information.
-
-Please extract:
-1. paper: metadata (title, authors, year, keywords, topic, abstract)
-2. outline: a reading guide outline tree
-
-## Outline Requirements (CRITICAL!)
-- Root node is the paper title
-- Level-1 nodes are major reading modules (e.g.: Background, Research Questions, Method, Experimental Design, Results, Discussion, Implications)
-- **You MUST faithfully decompose EVERY section and subsection heading from the paper**:
-  - If the paper has sections 3.1, 3.2, 3.3, each MUST be a separate node
-  - If 3.1 has subsections 3.1.1 and 3.1.2, they MUST be separate children of 3.1, NEVER merge them
-  - Every finest-granularity subsection MUST become its own node — each will become a separate PPT slide later
-  - When in doubt, split MORE rather than LESS
-  - Even paragraphs within a section that cover distinct topics should be separate nodes
-- Each node has title (heading) and description (one brief sentence)
-- Preserve the paper's original hierarchy — do NOT reorganize
-- **Completeness check**: After generating the outline, mentally walk through the paper from start to end. If any section/subsection is missing, add it. Missing content is the #1 error to avoid.
-
-Reply in English.`
-      : `你是一个学术论文解析助手。用户会给你一篇论文的全文文本，你需要提取结构化信息。
+    const systemPrompt = `你是一个学术论文解析助手。用户会给你一篇论文的全文文本，你需要提取结构化信息。
 
 请提取以下信息并通过 tool call 返回：
 1. paper: 论文元数据（标题、作者列表、年份、关键词列表、研究主题、摘要）
@@ -55,6 +32,12 @@ Reply in English.`
 - 保持论文原有的层级结构，不要自行重组
 - **完整性检查**：生成大纲后，请从头到尾回顾论文全文。如果有任何章节/小节遗漏，请补充。遗漏内容是最需要避免的错误。
 
+## 语言要求
+- 所有输出必须使用中文
+- title 和 description 都用中文
+- 如果论文是英文的，请将标题翻译为中文
+- paper 的各字段也使用中文（authors 除外，人名保留原文）
+
 请用中文回复。`;
 
     const response = await fetch("https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions", {
@@ -65,37 +48,39 @@ Reply in English.`
       },
       body: JSON.stringify({
         model: "qwen3-max",
+        temperature: 0.3,
+        top_p: 0.85,
         messages: [
           { role: "system", content: systemPrompt },
-          { role: "user", content: `${isEn ? 'Please parse the following paper' : '请解析以下论文'}：\n\n${paperText.substring(0, 30000)}` },
+          { role: "user", content: `请解析以下论文：\n\n${paperText.substring(0, 30000)}` },
         ],
         tools: [
           {
             type: "function",
             function: {
               name: "parse_paper",
-              description: "Return parsed paper metadata and outline",
+              description: "返回解析后的论文元数据和中文大纲",
               parameters: {
                 type: "object",
                 properties: {
                   paper: {
                     type: "object",
                     properties: {
-                      title: { type: "string" },
-                      authors: { type: "array", items: { type: "string" } },
+                      title: { type: "string", description: "论文标题（中文）" },
+                      authors: { type: "array", items: { type: "string" }, description: "作者列表（保留原文名）" },
                       year: { type: "number" },
-                      keywords: { type: "array", items: { type: "string" } },
-                      topic: { type: "string" },
-                      abstract: { type: "string" },
+                      keywords: { type: "array", items: { type: "string" }, description: "关键词（中文）" },
+                      topic: { type: "string", description: "研究主题（中文）" },
+                      abstract: { type: "string", description: "摘要（中文）" },
                     },
                     required: ["title", "authors", "year", "keywords", "topic"],
                   },
                   outline: {
                     type: "object",
-                    description: "Root node of the outline tree. Must faithfully decompose every subsection (e.g. 3.1.1, 3.1.2) as separate child nodes. Never merge or skip any section.",
+                    description: "大纲根节点。必须忠实拆解论文每个小节（如 3.1.1, 3.1.2）为独立子节点，不要合并或跳过。所有内容使用中文。",
                     properties: {
-                      title: { type: "string" },
-                      description: { type: "string" },
+                      title: { type: "string", description: "根节点标题（中文）" },
+                      description: { type: "string", description: "根节点说明（中文）" },
                       children: {
                         type: "array",
                         items: {
