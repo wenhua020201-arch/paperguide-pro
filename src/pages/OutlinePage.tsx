@@ -397,25 +397,25 @@ function TreeNodeComponent({
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-40">
             <DropdownMenuItem onClick={() => { setEditTitle(node.title); setEditingTitle(true); }}>
-              ✏️ {isEn ? 'Edit Title' : '编辑标题'}
+              ✏️ 编辑标题
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => { setEditDesc(node.description); setEditingDesc(true); }}>
-              ✏️ {isEn ? 'Edit Desc' : '编辑说明'}
+              ✏️ 编辑说明
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => onAddChild(node.id)}>
-              <Plus className="w-3.5 h-3.5 mr-2" />{isEn ? 'Add Child' : '新增子节点'}
+              <Plus className="w-3.5 h-3.5 mr-2" />新增子节点
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => onMoveToEdge(node.id, 'top')}>
-              <ChevronsUp className="w-3.5 h-3.5 mr-2" />{isEn ? 'Move to Top' : '置顶'}
+              <ChevronsUp className="w-3.5 h-3.5 mr-2" />置顶
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => onMove(node.parentId, node.id, 'up')}>
-              <ArrowUp className="w-3.5 h-3.5 mr-2" />{isEn ? 'Move Up' : '上移'}
+              <ArrowUp className="w-3.5 h-3.5 mr-2" />上移
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => onMove(node.parentId, node.id, 'down')}>
-              <ArrowDown className="w-3.5 h-3.5 mr-2" />{isEn ? 'Move Down' : '下移'}
+              <ArrowDown className="w-3.5 h-3.5 mr-2" />下移
             </DropdownMenuItem>
             <DropdownMenuItem onClick={() => onMoveToEdge(node.id, 'bottom')}>
-              <ChevronsDown className="w-3.5 h-3.5 mr-2" />{isEn ? 'Move to Bottom' : '置底'}
+              <ChevronsDown className="w-3.5 h-3.5 mr-2" />置底
             </DropdownMenuItem>
             {!isRoot && (
               <DropdownMenuItem className="text-destructive" onClick={() => onDelete(node.id)}>
