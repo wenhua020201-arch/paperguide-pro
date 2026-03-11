@@ -143,19 +143,6 @@ const OutlinePage = () => {
     dragNodeId.current = null;
   };
 
-  // Toggle language and persist
-  const toggleLanguage = () => {
-    const newLang = language === 'zh' ? 'en' : 'zh';
-    setLanguage(newLang);
-    try {
-      const saved = localStorage.getItem('current_project');
-      if (saved) {
-        const data = JSON.parse(saved);
-        data.language = newLang;
-        localStorage.setItem('current_project', JSON.stringify(data));
-      }
-    } catch {}
-  };
 
   // Persist outline changes
   useEffect(() => {
