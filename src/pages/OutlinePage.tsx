@@ -22,16 +22,7 @@ const OutlinePage = () => {
   const [paper, setPaper] = useState<PaperMeta>(MOCK_PAPER);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [pdfOpen, setPdfOpen] = useState(true);
-  const [language, setLanguage] = useState<'zh' | 'en'>(() => {
-    try {
-      const saved = localStorage.getItem('current_project');
-      if (saved) {
-        const data = JSON.parse(saved);
-        return data.language || 'zh';
-      }
-    } catch {}
-    return 'zh';
-  });
+  const language: 'zh' | 'en' = 'zh';
 
   useEffect(() => {
     try {
