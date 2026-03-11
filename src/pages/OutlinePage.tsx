@@ -4,8 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft, ChevronRight, ChevronDown, GripVertical, MoreHorizontal,
   Plus, Trash2, ArrowUp, ArrowDown, ChevronsUp, ChevronsDown,
-  FileText as FileTextIcon, Check, X, PanelLeftClose, PanelLeftOpen,
-  Languages
+  FileText as FileTextIcon, Check, X, PanelLeftClose, PanelLeftOpen
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
