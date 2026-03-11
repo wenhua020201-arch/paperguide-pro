@@ -127,6 +127,8 @@ export type Database = {
         | "slide_written"
         | "design_decided"
         | "rendered"
+        | "presentation_units_extracted"
+        | "slides_generated"
       step_status: "pending" | "running" | "completed" | "failed" | "skipped"
     }
     CompositeTypes: {
@@ -262,6 +264,8 @@ export const Constants = {
         "slide_written",
         "design_decided",
         "rendered",
+        "presentation_units_extracted",
+        "slides_generated",
       ],
       step_status: ["pending", "running", "completed", "failed", "skipped"],
     },
