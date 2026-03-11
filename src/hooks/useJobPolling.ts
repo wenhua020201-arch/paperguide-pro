@@ -38,6 +38,13 @@ export interface JobState {
   error: string | null;
 }
 
+export const PIPELINE_STAGE_ORDER = [
+  'section_summarized',
+  'presentation_units_extracted',
+  'slide_planned',
+  'slides_generated',
+];
+
 export function useJobPolling(jobId: string | null) {
   const [state, setState] = useState<JobState>({
     job: null,
@@ -66,7 +73,11 @@ export function useJobPolling(jobId: string | null) {
       }));
 
       // Stop polling if terminal state
-      if (data.job?.status === 'completed' || data.job?.status === 'failed' || data.job?.status === 'cancelled') {
+      if (
+        data.job?.status === 'completed' ||
+        data.job?.status === 'failed' ||
+        data.job?.status === 'cancelled'
+      ) {
         if (intervalRef.current) {
           clearInterval(intervalRef.current);
           intervalRef.current = null;
@@ -87,10 +98,10 @@ export function useJobPolling(jobId: string | null) {
     setState((prev) => ({ ...prev, loading: true }));
     fetchStatus();
 
-    // Poll every 3 seconds
-    intervalRef.current = window.setInterval(fetchStatus, 3000);
+    // Poll every 2 seconds for per-slide progress
+    intervalRef.current = window.setInterval(fetchStatus, 2000);
 
-    // Also subscribe to realtime updates
+    // Realtime updates
     const channel = supabase
       .channel(`job-${jobId}`)
       .on(
@@ -116,13 +127,32 @@ export function useJobPolling(jobId: string | null) {
     };
   }, [jobId, fetchStatus]);
 
-  const retryStep = useCallback(async (stepName: string) => {
-    if (!jobId) return;
-    await supabase.functions.invoke('retry-job-step', {
-      body: { jobId, stepName },
-    });
-    fetchStatus();
-  }, [jobId, fetchStatus]);
+  const retryStep = useCallback(
+    async (stepName: string) => {
+      if (!jobId) return;
+      await supabase.functions.invoke('retry-job-step', {
+        body: { jobId, stepName },
+      });
+      fetchStatus();
+    },
+    [jobId, fetchStatus]
+  );
 
-  return { ...state, retryStep, refetch: fetchStatus };
+  const triggerStage = useCallback(
+    async (stageName: string) => {
+      if (!jobId) return;
+      // Use retry-job-step to trigger a pending stage
+      await supabase.functions.invoke('retry-job-step', {
+        body: { jobId, stepName: stageName },
+      });
+      // Restart polling
+      if (!intervalRef.current) {
+        intervalRef.current = window.setInterval(fetchStatus, 2000);
+      }
+      fetchStatus();
+    },
+    [jobId, fetchStatus]
+  );
+
+  return { ...state, retryStep, triggerStage, refetch: fetchStatus };
 }
