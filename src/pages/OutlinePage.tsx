@@ -245,8 +245,8 @@ const OutlinePage = () => {
                 />
               </div>
               <div>
-                <p className="text-xs text-muted-foreground mb-1">{isEn ? 'Level' : '层级'}</p>
-                <p className="text-sm text-foreground">{isEn ? `Level ${selectedNode.level}` : `第 ${selectedNode.level} 级`}</p>
+                <p className="text-xs text-muted-foreground mb-1">{'层级'}</p>
+                <p className="text-sm text-foreground">{`第 ${selectedNode.level} 级`}</p>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground mb-1">{isEn ? 'Children' : '子节点数'}</p>
