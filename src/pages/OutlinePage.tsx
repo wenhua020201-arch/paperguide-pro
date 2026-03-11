@@ -166,7 +166,7 @@ const OutlinePage = () => {
             <ArrowLeft className="w-4 h-4" />
           </Button>
           <h1 className="text-lg font-display font-semibold text-foreground">
-            {isEn ? 'Reading Outline' : '导读大纲'}
+            {'导读大纲'}
           </h1>
         </div>
         <div className="flex items-center gap-2">
