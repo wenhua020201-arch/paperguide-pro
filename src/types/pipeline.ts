@@ -90,6 +90,12 @@ export interface SlidePlanItem {
   layout: PipelineLayout;
   purpose: string;
   rationale: string;
+  pageGoal: string;
+  primaryMessage: string;
+  secondaryMessage: string;
+  visualPriority: 'text' | 'data' | 'structure' | 'comparison';
+  contentStructure: 'linear' | 'grouped' | 'contrasted' | 'layered' | 'highlighted';
+  groupingLogic: string;
 }
 
 export interface SlidePlanResult {
