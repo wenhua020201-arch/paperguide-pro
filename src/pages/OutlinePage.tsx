@@ -72,8 +72,8 @@ const OutlinePage = () => {
       id: `n-${Date.now()}`,
       parentId,
       level: 0,
-      title: language === 'en' ? 'New Node' : '新节点',
-      description: language === 'en' ? 'Click to edit' : '点击编辑说明',
+      title: '新节点',
+      description: '点击编辑说明',
       order: 0,
       children: [],
     };
