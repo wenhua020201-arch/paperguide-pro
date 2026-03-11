@@ -280,7 +280,7 @@ const OutlinePage = () => {
 };
 
 function TreeNodeComponent({
-  node, selectedId, onSelect, onToggle, onDelete, onAddChild, onUpdate, onMove, onMoveToEdge, onDragStart, onDrop, isRoot, depth = 0, language = 'zh'
+  node, selectedId, onSelect, onToggle, onDelete, onAddChild, onUpdate, onMove, onMoveToEdge, onDragStart, onDrop, isRoot, depth = 0
 }: {
   node: OutlineNode;
   selectedId: string | null;
