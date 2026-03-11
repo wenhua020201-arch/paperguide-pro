@@ -157,7 +157,6 @@ const OutlinePage = () => {
     } catch {}
   }, [outline]);
 
-  const isEn = language === 'en';
 
   return (
     <div className="h-screen bg-background flex flex-col">
