@@ -7,11 +7,35 @@ export interface PaperSection {
   content: string;
 }
 
+export type CoreRelation =
+  | 'parallel'
+  | 'sequence'
+  | 'comparison'
+  | 'part-whole'
+  | 'hierarchy'
+  | 'cause-effect'
+  | 'none';
+
+export type VisualPattern =
+  | 'cards'
+  | 'process'
+  | 'comparison'
+  | 'matrix'
+  | 'timeline'
+  | 'bullets'
+  | 'hierarchy'
+  | 'single-highlight';
+
 export interface SectionSummary {
   id: string;
   title: string;
   summary: string;
   keyPoints: string[];
+  keyNumbers: string[];
+  coreRelation: CoreRelation;
+  visualPattern: VisualPattern;
+  presentationHint: string;
+  suggestedSplit: number;
   nodeType:
     | 'background'
     | 'research_question'
