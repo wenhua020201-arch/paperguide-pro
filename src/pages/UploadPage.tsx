@@ -75,7 +75,7 @@ const UploadPage = () => {
       }, 3000);
 
       const { data, error: fnError } = await supabase.functions.invoke('paper-parse', {
-        body: { paperText, language: 'zh' },
+        body: { paperText },
       });
 
       clearInterval(stepTimer);
