@@ -3,20 +3,32 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  if (req.method === "OPTIONS")
+    return new Response(null, { headers: corsHeaders });
 
   try {
-    const { outline, paper, template, density, language, targetSlideCount } = await req.json();
+    const {
+      outline,
+      paper,
+      template,
+      density,
+      language,
+      targetSlideCount,
+    } = await req.json();
 
     if (!outline || !paper) {
-      return new Response(JSON.stringify({ error: "Missing outline or paper" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ error: "Missing outline or paper" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -40,13 +52,12 @@ serve(async (req) => {
 
     if (jobError) throw jobError;
 
-    // Pre-create all step records
+    // Pre-create step records for the new 4-stage pipeline
     const steps = [
       "section_summarized",
+      "presentation_units_extracted",
       "slide_planned",
-      "slide_written",
-      "design_decided",
-      "rendered",
+      "slides_generated",
     ];
     const stepInserts = steps.map((name) => ({
       job_id: job.id,
@@ -54,7 +65,9 @@ serve(async (req) => {
       step_status: "pending",
     }));
 
-    const { error: stepsError } = await sb.from("ppt_job_steps").insert(stepInserts);
+    const { error: stepsError } = await sb
+      .from("ppt_job_steps")
+      .insert(stepInserts);
     if (stepsError) throw stepsError;
 
     // Fire-and-forget: trigger the first stage
@@ -65,7 +78,10 @@ serve(async (req) => {
         "Content-Type": "application/json",
         Authorization: `Bearer ${supabaseKey}`,
       },
-      body: JSON.stringify({ jobId: job.id, stage: "section_summarized" }),
+      body: JSON.stringify({
+        jobId: job.id,
+        stage: "section_summarized",
+      }),
     }).catch((e) => console.error("Failed to trigger run-ppt-job:", e));
 
     return new Response(JSON.stringify({ jobId: job.id }), {
@@ -74,8 +90,13 @@ serve(async (req) => {
   } catch (e) {
     console.error("create-job error:", e);
     return new Response(
-      JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      JSON.stringify({
+        error: e instanceof Error ? e.message : "Unknown error",
+      }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
     );
   }
 });
