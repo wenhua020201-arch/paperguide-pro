@@ -263,7 +263,7 @@ const OutlinePage = () => {
             </motion.div>
           ) : (
             <div className="text-sm text-muted-foreground text-center mt-12">
-              {isEn ? 'Select a node to view details' : '选择一个节点查看详情'}
+              {'选择一个节点查看详情'}
             </div>
           )}
         </aside>
