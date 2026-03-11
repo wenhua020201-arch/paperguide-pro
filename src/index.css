@@ -123,3 +123,9 @@
 ::-webkit-scrollbar-thumb:hover {
   background: hsl(var(--muted-foreground));
 }
+
+/* Prevent browser swipe-back/forward gesture */
+html, body {
+  overscroll-behavior-x: none;
+}
+

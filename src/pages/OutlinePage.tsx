@@ -171,14 +171,9 @@ const OutlinePage = () => {
           </h1>
         </div>
         <div className="flex items-center gap-2">
-          {/* Language toggle */}
-          <Button variant="outline" size="sm" onClick={toggleLanguage} className="gap-1.5">
-            <Languages className="w-3.5 h-3.5" />
-            <span className="text-xs font-medium">{isEn ? 'EN' : '中文'}</span>
-          </Button>
           <Button variant="ghost" size="sm" onClick={() => setPdfOpen(!pdfOpen)}>
             {pdfOpen ? <PanelLeftClose className="w-4 h-4" /> : <PanelLeftOpen className="w-4 h-4" />}
-            <span className="ml-1 text-xs">{isEn ? 'Paper' : '原文'}</span>
+            <span className="ml-1 text-xs">原文</span>
           </Button>
         </div>
       </header>
