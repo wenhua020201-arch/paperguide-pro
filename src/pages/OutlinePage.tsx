@@ -304,7 +304,7 @@ function TreeNodeComponent({
   const [editingDesc, setEditingDesc] = useState(false);
   const [editDesc, setEditDesc] = useState(node.description);
   const [dragOver, setDragOver] = useState(false);
-  const isEn = language === 'en';
+  
 
   const commitTitle = () => {
     if (editTitle.trim()) onUpdate(node.id, { title: editTitle.trim() });
