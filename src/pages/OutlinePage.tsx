@@ -419,7 +419,7 @@ function TreeNodeComponent({
             </DropdownMenuItem>
             {!isRoot && (
               <DropdownMenuItem className="text-destructive" onClick={() => onDelete(node.id)}>
-                <Trash2 className="w-3.5 h-3.5 mr-2" />{isEn ? 'Delete' : '删除'}
+                <Trash2 className="w-3.5 h-3.5 mr-2" />删除
               </DropdownMenuItem>
             )}
           </DropdownMenuContent>
