@@ -257,7 +257,7 @@ const OutlinePage = () => {
                   <Plus className="w-3.5 h-3.5 mr-2" />{'新增子节点'}
                 </Button>
                 <Button size="sm" variant="outline" className="w-full justify-start text-destructive" onClick={() => deleteNode(selectedNode.id)}>
-                  <Trash2 className="w-3.5 h-3.5 mr-2" />{isEn ? 'Delete' : '删除节点'}
+                  <Trash2 className="w-3.5 h-3.5 mr-2" />{'删除节点'}
                 </Button>
               </div>
             </motion.div>
