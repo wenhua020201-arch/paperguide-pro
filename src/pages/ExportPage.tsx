@@ -1,13 +1,30 @@
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save, FileDown, FileText, MessageSquare, Edit3 } from 'lucide-react';
+import { ArrowLeft, Save, FileDown, MessageSquare, Edit3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { MOCK_PROJECT } from '@/data/mockData';
 import { TEMPLATES } from '@/data/mockData';
 
 const ExportPage = () => {
   const navigate = useNavigate();
-  const project = MOCK_PROJECT;
-  const tpl = TEMPLATES.find(t => t.id === project.template);
+  const [paperTitle, setPaperTitle] = useState('未命名项目');
+  const [slideCount, setSlideCount] = useState(0);
+  const [templateName, setTemplateName] = useState('未知');
+  const [updatedAt, setUpdatedAt] = useState(new Date().toISOString());
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('current_project');
+      if (!saved) return;
+      const data = JSON.parse(saved);
+      if (data.paper?.title) setPaperTitle(data.paper.title);
+      if (data.slides?.length) setSlideCount(data.slides.length);
+      if (data.template) {
+        const tpl = TEMPLATES.find(t => t.id === data.template);
+        if (tpl) setTemplateName(tpl.name);
+      }
+      if (data.updatedAt) setUpdatedAt(data.updatedAt);
+    } catch {}
+  }, []);
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -22,31 +39,29 @@ const ExportPage = () => {
 
       <main className="flex-1 flex items-center justify-center px-6 py-12">
         <div className="max-w-md w-full space-y-6">
-          {/* Project info */}
           <div className="bg-card border border-border rounded-xl p-6 space-y-4">
             <div>
               <p className="text-xs text-muted-foreground mb-1">项目标题</p>
-              <p className="font-display font-semibold text-foreground">{project.paper.title}</p>
+              <p className="font-display font-semibold text-foreground">{paperTitle}</p>
             </div>
             <div className="grid grid-cols-3 gap-4">
               <div>
                 <p className="text-xs text-muted-foreground mb-1">页数</p>
-                <p className="text-sm font-medium text-foreground">{project.slides.length} 页</p>
+                <p className="text-sm font-medium text-foreground">{slideCount} 页</p>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground mb-1">模板</p>
-                <p className="text-sm font-medium text-foreground">{tpl?.name}</p>
+                <p className="text-sm font-medium text-foreground">{templateName}</p>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground mb-1">最后编辑</p>
                 <p className="text-sm font-medium text-foreground">
-                  {new Date(project.updatedAt).toLocaleDateString('zh-CN')}
+                  {new Date(updatedAt).toLocaleDateString('zh-CN')}
                 </p>
               </div>
             </div>
           </div>
 
-          {/* Actions */}
           <div className="space-y-3">
             <Button className="w-full justify-start" size="lg">
               <Save className="w-5 h-5 mr-3" />
