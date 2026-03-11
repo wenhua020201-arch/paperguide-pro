@@ -31,7 +31,6 @@ const OutlinePage = () => {
         const data = JSON.parse(saved);
         if (data.outline) setOutline(data.outline);
         if (data.paper) setPaper(data.paper);
-        if (data.language) setLanguage(data.language);
       }
     } catch {};
   }, []);
