@@ -443,7 +443,7 @@ function TreeNodeComponent({
               onDragStart={onDragStart}
               onDrop={onDrop}
               depth={depth + 1}
-              language={language}
+              
             />
           ))}
         </div>
