@@ -229,7 +229,7 @@ const OutlinePage = () => {
           {selectedNode ? (
             <motion.div key={selectedNode.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
               <div>
-                <p className="text-xs text-muted-foreground mb-1">{isEn ? 'Node Title' : '节点标题'}</p>
+                <p className="text-xs text-muted-foreground mb-1">{'节点标题'}</p>
                 <Input
                   value={selectedNode.title}
                   onChange={(e) => updateNode(selectedNode.id, { title: e.target.value })}
